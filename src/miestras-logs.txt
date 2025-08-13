@@ -1,0 +1,12 @@
+// Archivo temporal para logs de depuración de AuthContext
+// Puedes copiar aquí los logs de la consola para analizarlos o compartirlos.
+
+// Ejemplo de uso:
+// [signUp] Iniciando registro { email: '...', name: '...', role: '...' }
+// [signUp] Resultado signUp auth: { data: ..., error: ... }
+// [login] Intentando login { email: '...' }
+// [login] Resultado login: { data: ..., error: ... }
+// [login] Error: ...
+
+// Pega aquí los logs:
+
