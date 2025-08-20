@@ -158,9 +158,10 @@ export default function Entries() {
       const { error: movementError } = await supabase.from('movimientos').insert([{
         producto_id: selectedProductId,
         usuario_id: user.id,
-        tipo: 'entrada',
+        tipo_movimiento: 'entrada',
         cantidad: Number(quantity),
         motivo: 'Devolución o ingreso a stock existente',
+        condicion: 'Bueno' // Columna obligatoria añadida
       }]);
       if (movementError) throw movementError;
     }
@@ -193,9 +194,10 @@ export default function Entries() {
       const { error: movementError } = await supabase.from('movimientos').insert([{
         producto_id: newProduct.id,
         usuario_id: user.id,
-        tipo: 'entrada',
+        tipo_movimiento: 'entrada',
         cantidad: Number(formData.stock_actual),
         motivo: 'Ingreso de nuevo producto desde proveedor',
+        condicion: formData.condicion // Columna obligatoria añadida
       }]);
       if (movementError) throw movementError;
     }
