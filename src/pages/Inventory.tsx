@@ -402,7 +402,7 @@ export function Inventory() {
             onChange={(e) => setSegregateData(d => ({ ...d, cantidad: Number(e.target.value) }))}
             min="1"
             // CORRECTED: Safely access stock for the max attribute
-            max={selectedProduct?.stock_por_condicion?.[segregateData.condicion_origen] || 1}
+            max={selectedProduct?.stock_por_condicion?.[segregateData.condicion_origen] || selectedProduct?.stock_por_condicion?.[segregateData.condicion_origen.toLowerCase()] || 1}
           />
           <div className="flex justify-end space-x-3 pt-4">
             <Button type="button" variant="secondary" onClick={() => setShowSegregateModal(false)}>Cancelar</Button>
