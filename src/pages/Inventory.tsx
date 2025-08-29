@@ -254,11 +254,11 @@ export function Inventory() {
   };
 
   const getConditionVariant = (condition: string) => {
-    switch (condition) {
-      case 'Bueno': return 'success';
-      case 'Cuarentena': return 'warning';
-      case 'Vencido': return 'danger';
-      case 'Dañado': return 'danger';
+    switch (condition.toLowerCase()) {
+      case 'bueno': return 'success';
+      case 'cuarentena': return 'warning';
+      case 'vencido': return 'danger';
+      case 'dañado': return 'danger';
       default: return 'secondary';
     }
   };
