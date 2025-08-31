@@ -153,14 +153,43 @@ export function Inventory() {
         bloqueado: formData.condicion === 'vencido',
       };
 
+      console.log('Datos a enviar a Supabase:', productData);
+
       if (isEditing && selectedProduct) {
+        // Logic for updating remains the same
         const { error } = await supabase.from('productos').update(productData).eq('id', selectedProduct.id);
         if (error) throw error;
         toast.success('Producto actualizado.');
       } else {
-        const { error } = await supabase.from('productos').insert([productData]);
-        if (error) throw error;
-        toast.success('Producto creado.');
+        // Corrected logic for creating a new product
+        const { data: newProduct, error: insertError } = await supabase
+          .from('productos')
+          .insert([productData])
+          .select('id')
+          .single();
+
+        if (insertError || !newProduct) {
+          throw insertError || new Error('No se pudo crear el producto.');
+        }
+
+        // Add the initial movement record
+        if (user && productData.stock_actual > 0) {
+          const { error: movementError } = await supabase.from('movimientos').insert([{
+            producto_id: newProduct.id,
+            usuario_id: user.id,
+            tipo_movimiento: 'entrada',
+            cantidad: productData.stock_actual,
+            motivo: 'Ingreso inicial de stock',
+            condicion: productData.condicion,
+          }]);
+
+          if (movementError) {
+            // Attempt to clean up if movement creation fails
+            await supabase.from('productos').delete().eq('id', newProduct.id);
+            throw movementError;
+          }
+        }
+        toast.success('Producto creado con su movimiento inicial.');
       }
       setShowModal(false);
       fetchProducts();
@@ -359,7 +388,7 @@ export function Inventory() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Select label="Producto Maestro *" options={masterProductsList.map(mp => ({ value: mp.id, label: mp.nombre }))} value={formData.maestro_producto_id} onChange={(e) => setFormData(p => ({ ...p, maestro_producto_id: e.target.value }))} required disabled={!isEditing} />
             <Select label="Proveedor *" options={providersList.map(p => ({ value: p.id, label: p.nombre }))} value={formData.proveedor_id} onChange={(e) => setFormData(p => ({ ...p, proveedor_id: e.target.value }))} required disabled={!isEditing} />
-            <Input label="Stock Actual *" type="number" value={formData.stock_actual} onChange={(e) => setFormData(p => ({ ...p, stock_actual: Number(e.target.value) }))} required disabled={!isEditing} />
+            <Input label="Stock Actual *" type="number" value={formData.stock_actual} onChange={(e) => setFormData({ ...formData, stock_actual: Number(e.target.value) })} required disabled={!isEditing} />
             <Select label="Condición *" options={conditions.map(c => ({ value: c.value, label: c.label }))} value={formData.condicion} onChange={(e) => setFormData(p => ({ ...p, condicion: e.target.value }))} required disabled={!isEditing} />
             <Input label="N° Lote *" value={formData.numero_lote} onChange={(e) => setFormData(p => ({ ...p, numero_lote: e.target.value }))} required disabled={!isEditing} />
             <Input label="Fecha de Vencimiento *" type="date" value={formData.fecha_vencimiento} onChange={(e) => setFormData(p => ({ ...p, fecha_vencimiento: e.target.value }))} required disabled={!isEditing} />
