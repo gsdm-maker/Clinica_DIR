@@ -333,6 +333,8 @@ export function Inventory() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock Total</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock por Condición</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Proveedor</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha Ingreso</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha Vencimiento</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
               </tr>
             </thead>
@@ -364,6 +366,12 @@ export function Inventory() {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">{product.proveedores?.nombre || 'N/A'}</td>
+                    <td className="px-6 py-4 text-sm text-gray-500">
+                      {product.fecha_ingreso ? format(new Date(product.fecha_ingreso), 'dd MMM yyyy', { locale: es }) : 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-500">
+                      {product.fecha_vencimiento ? format(new Date(product.fecha_vencimiento), 'dd MMM yyyy', { locale: es }) : 'N/A'}
+                    </td>
                     <td className="px-6 py-4">
                       <div className="flex space-x-2">
                         <button onClick={() => openModal(product, false)} className="text-blue-600"><Eye className="w-4 h-4" /></button>
