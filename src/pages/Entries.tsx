@@ -430,8 +430,9 @@ export default function Entries() {
               <Input label="Motivo" name="motivo" value={motivoExistente} onChange={(e) => setMotivoExistente(e.target.value)} required disabled={!canAddExisting || loading} />
             </div>
           ) : entryMode === 'new' ? (
+            ) : entryMode === 'bulk' ? (
             <div className="space-y-4">
-              <h3 className="text-lg font-medium">Registrar Nuevo Producto (Proveedor)</h3>
+              <h3 className="text-lg font-medium">Registrar Entrada Masiva</h3>
               {!canAddNew && <p className="text-red-500">No tienes permiso.</p>}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Select label="Producto del Catálogo" name="maestro_producto_id" options={masterProducts.map(p => ({ value: p.id, label: p.nombre }))} value={formData.maestro_producto_id} onChange={handleFormChange} required disabled={!canAddNew || loading} />
@@ -453,15 +454,15 @@ export default function Entries() {
             <div className="space-y-4">
               <h3 className="text-lg font-medium">Registrar Entrada Masiva</h3>
               {!canAddBulk && <p className="text-red-500">No tienes permiso.</p>}
+              <Input
+                label="Número de Guía"
+                name="numero_guia"
+                value={bulkEntryData.numero_guia}
+                onChange={handleBulkEntryChange}
+                required
+                disabled={loading}
+              />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input
-                  label="Número de Guía"
-                  name="numero_guia"
-                  value={bulkEntryData.numero_guia}
-                  onChange={handleBulkEntryChange}
-                  required
-                  disabled={loading}
-                />
                 <Select
                   label="Proveedor"
                   name="proveedor_id"
