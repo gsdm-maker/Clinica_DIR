@@ -1,0 +1,1 @@
+ALTER TABLE public.movimientos ADD COLUMN numero_guia TEXT;
