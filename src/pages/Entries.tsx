@@ -449,11 +449,19 @@ export default function Entries() {
               <textarea name="observaciones" value={formData.observaciones} onChange={handleFormChange} placeholder="Observaciones..." className="w-full border rounded px-3 py-2" disabled={!canAddNew || loading} />
               <Input label="Número de Guía" name="numero_guia" value={formData.numero_guia} onChange={handleFormChange} disabled={!canAddNew || loading} />
             </div>
-          ) : (
+          ) : entryMode === 'bulk' ? (
             <div className="space-y-4">
-              <h3 className="text-lg font-medium">Registrar Entrada Masiva (Proveedor)</h3>
+              <h3 className="text-lg font-medium">Registrar Entrada Masiva</h3>
               {!canAddBulk && <p className="text-red-500">No tienes permiso.</p>}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input
+                  label="Número de Guía"
+                  name="numero_guia"
+                  value={bulkEntryData.numero_guia}
+                  onChange={handleBulkEntryChange}
+                  required
+                  disabled={loading}
+                />
                 <Select
                   label="Proveedor"
                   name="proveedor_id"
@@ -463,90 +471,104 @@ export default function Entries() {
                   required
                   disabled={loading}
                 />
-                <Input
-                  label="Número de Guía"
-                  name="numero_guia"
-                  value={bulkEntryData.numero_guia}
-                  onChange={handleBulkEntryChange}
-                  required
-                  disabled={loading}
-                />
               </div>
 
               <h3 className="text-lg font-medium mt-6">Productos a Ingresar</h3>
-              <div className="space-y-4">
-                {bulkEntryData.products.map((product, index) => (
-                  <div key={index} className="border p-4 rounded-lg relative">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => removeProductLine(index)}
-                      className="absolute top-2 right-2 text-red-500 hover:text-red-700"
-                      disabled={loading}
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </Button>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <Select
-                        label="Producto del Catálogo"
-                        name="maestro_producto_id"
-                        options={masterProducts.map(p => ({ value: p.id, label: p.nombre }))}
-                        value={product.maestro_producto_id}
-                        onChange={(e) => handleProductLineChange(index, e)}
-                        required
-                        disabled={loading}
-                      />
-                      <Input
-                        label="Cantidad"
-                        name="cantidad"
-                        type="number"
-                        min={1}
-                        value={product.cantidad}
-                        onChange={(e) => handleProductLineChange(index, e)}
-                        required
-                        disabled={loading}
-                      />
-                      <Input
-                        label="N° Lote"
-                        name="numero_lote"
-                        value={product.numero_lote}
-                        onChange={(e) => handleProductLineChange(index, e)}
-                        required
-                        disabled={loading}
-                      />
-                      <Input
-                        label="Fecha de Vencimiento"
-                        name="fecha_vencimiento"
-                        type="date"
-                        value={product.fecha_vencimiento}
-                        onChange={(e) => handleProductLineChange(index, e)}
-                        required
-                        disabled={loading}
-                      />
-                      <Select
-                        label="Condición"
-                        name="condicion"
-                        options={[{ value: 'bueno', label: 'Bueno' }, { value: 'cuarentena', label: 'Cuarentena' }]}
-                        value={product.condicion}
-                        onChange={(e) => handleProductLineChange(index, e)}
-                        required
-                        disabled={loading}
-                      />
-                    </div>
-                    <textarea
-                      name="observaciones"
-                      value={product.observaciones}
-                      onChange={(e) => handleProductLineChange(index, e)}
-                      placeholder="Observaciones..."
-                      className="w-full border rounded px-3 py-2 mt-4"
-                      disabled={loading}
-                    />
-                  </div>
-                ))}
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Producto</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cantidad</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° Lote</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha Venc.</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Condición</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Observaciones</th>
+                      <th scope="col" className="relative px-6 py-3"><span className="sr-only">Eliminar</span></th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {bulkEntryData.products.map((product, index) => (
+                      <tr key={index}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <Select
+                            name="maestro_producto_id"
+                            options={masterProducts.map(p => ({ value: p.id, label: p.nombre }))}
+                            value={product.maestro_producto_id}
+                            onChange={(e) => handleProductLineChange(index, e)}
+                            required
+                            disabled={loading}
+                          />
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <Input
+                            name="cantidad"
+                            type="number"
+                            min={1}
+                            value={product.cantidad}
+                            onChange={(e) => handleProductLineChange(index, e)}
+                            required
+                            disabled={loading}
+                          />
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <Input
+                            name="numero_lote"
+                            value={product.numero_lote}
+                            onChange={(e) => handleProductLineChange(index, e)}
+                            required
+                            disabled={loading}
+                          />
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <Input
+                            name="fecha_vencimiento"
+                            type="date"
+                            value={product.fecha_vencimiento}
+                            onChange={(e) => handleProductLineChange(index, e)}
+                            required
+                            disabled={loading}
+                          />
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <Select
+                            name="condicion"
+                            options={[{ value: 'bueno', label: 'Bueno' }, { value: 'cuarentena', label: 'Cuarentena' }]}
+                            value={product.condicion}
+                            onChange={(e) => handleProductLineChange(index, e)}
+                            required
+                            disabled={loading}
+                          />
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <textarea
+                            name="observaciones"
+                            value={product.observaciones}
+                            onChange={(e) => handleProductLineChange(index, e)}
+                            placeholder="Observaciones..."
+                            className="w-full border rounded px-3 py-2"
+                            disabled={loading}
+                          />
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => removeProductLine(index)}
+                            className="text-red-500 hover:text-red-700"
+                            disabled={loading}
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
 
               <Button type="button" onClick={addProductLine} variant="outline" className="w-full mt-4" disabled={loading}>
-                <Plus className="w-4 h-4 mr-2" /> Añadir Producto
+                <Plus className="w-4 h-4 mr-2" /> Añadir Fila
               </Button>
             </div>
           )}
