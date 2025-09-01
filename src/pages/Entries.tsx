@@ -185,7 +185,6 @@ export default function Entries() {
         fecha_vencimiento: formData.fecha_vencimiento,
         condicion: formData.condicion,
         observaciones: formData.observaciones,
-        numero_guia: formData.numero_guia,
         fecha_ingreso: new Date().toISOString(),
       }])
       .select('id')
@@ -200,7 +199,8 @@ export default function Entries() {
         tipo_movimiento: 'entrada',
         cantidad: Number(formData.stock_actual),
         motivo: 'Ingreso de nuevo producto desde proveedor',
-        condicion: formData.condicion // Columna obligatoria añadida
+        condicion: formData.condicion, // Columna obligatoria añadida
+        numero_guia: formData.numero_guia
       }]);
       if (movementError) throw movementError;
     }
