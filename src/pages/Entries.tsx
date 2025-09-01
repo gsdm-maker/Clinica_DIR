@@ -21,6 +21,7 @@ export default function Entries() {
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProductId, setSelectedProductId] = useState('');
   const [quantity, setQuantity] = useState(0);
+  const [motivoExistente, setMotivoExistente] = useState('');
 
   // Nuevos estados para el maestro de productos y proveedores
   const [masterProducts, setMasterProducts] = useState<MasterProduct[]>([]);
@@ -37,7 +38,8 @@ export default function Entries() {
     condicion: 'bueno',
     numero_lote: '',
     fecha_vencimiento: '',
-    observaciones: ''
+    observaciones: '',
+    numero_guia: ''
   });
 
   const { user } = useAuth();
@@ -134,7 +136,7 @@ export default function Entries() {
   };
 
   const handleAddExistingStock = async () => {
-    if (!canAddExisting || !selectedProductId || quantity <= 0) {
+    if (!canAddExisting || !selectedProductId || quantity <= 0 || !motivoExistente) {
       throw new Error('Por favor, completa todos los campos requeridos.');
     }
 
@@ -160,7 +162,7 @@ export default function Entries() {
         usuario_id: user.id,
         tipo_movimiento: 'entrada',
         cantidad: Number(quantity),
-        motivo: 'Devolución o ingreso a stock existente',
+        motivo: motivoExistente,
         condicion: 'Bueno' // Columna obligatoria añadida
       }]);
       if (movementError) throw movementError;
@@ -183,6 +185,7 @@ export default function Entries() {
         fecha_vencimiento: formData.fecha_vencimiento,
         condicion: formData.condicion,
         observaciones: formData.observaciones,
+        numero_guia: formData.numero_guia,
         fecha_ingreso: new Date().toISOString(),
       }])
       .select('id')
@@ -209,6 +212,7 @@ export default function Entries() {
   const resetExistingStockForm = () => {
     setSelectedProductId('');
     setQuantity(0);
+    setMotivoExistente('');
   };
 
   const resetFormData = () => {
@@ -221,7 +225,8 @@ export default function Entries() {
       condicion: 'bueno',
       numero_lote: '',
       fecha_vencimiento: '',
-      observaciones: ''
+      observaciones: '',
+      numero_guia: ''
     });
   };
 
@@ -261,6 +266,7 @@ export default function Entries() {
                 </select>
               </div>
               <Input label="Cantidad a Ingresar" type="number" name="cantidad" min={0} value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} required disabled={!canAddExisting || loading} />
+              <Input label="Motivo" name="motivo" value={motivoExistente} onChange={(e) => setMotivoExistente(e.target.value)} required disabled={!canAddExisting || loading} />
             </div>
           ) : (
             <div className="space-y-4">
@@ -280,6 +286,7 @@ export default function Entries() {
                 <Select label="Condición" name="condicion" options={[{value: 'bueno', label: 'Bueno'}, {value: 'cuarentena', label: 'Cuarentena'}]} value={formData.condicion} onChange={handleFormChange} required disabled={!canAddNew || loading} />
               </div>
               <textarea name="observaciones" value={formData.observaciones} onChange={handleFormChange} placeholder="Observaciones..." className="w-full border rounded px-3 py-2" disabled={!canAddNew || loading} />
+              <Input label="Número de Guía" name="numero_guia" value={formData.numero_guia} onChange={handleFormChange} disabled={!canAddNew || loading} />
             </div>
           )}
           <div className="flex justify-end">
