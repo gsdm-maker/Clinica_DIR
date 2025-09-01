@@ -8,10 +8,19 @@ import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 import { Modal } from '../components/ui/Modal';
 import { Product, MasterProduct, Provider } from '../types';
-import { Plus } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 
 // Definimos los modos de entrada
-type EntryMode = 'existing' | 'new';
+type EntryMode = 'existing' | 'new' | 'bulk';
+
+interface BulkProductEntry {
+  maestro_producto_id: string;
+  cantidad: number;
+  numero_lote: string;
+  fecha_vencimiento: string;
+  condicion: 'bueno' | 'cuarentena';
+  observaciones: string;
+}
 
 export default function Entries() {
   const [loading, setLoading] = useState(false);
@@ -42,15 +51,30 @@ export default function Entries() {
     numero_guia: ''
   });
 
+  // Estado para el formulario de entrada masiva
+  const [bulkEntryData, setBulkEntryData] = useState({
+    proveedor_id: '',
+    numero_guia: '',
+    products: [] as BulkProductEntry[],
+  });
+
   const { user } = useAuth();
   const canAddExisting = user?.role === 'admin' || user?.role === 'bodega' || user?.role === 'enfermero';
   const canAddNew = user?.role === 'admin' || user?.role === 'bodega';
+  const canAddBulk = user?.role === 'admin' || user?.role === 'bodega';
 
   useEffect(() => {
     if (entryMode === 'existing') {
       resetFormData();
+      resetBulkEntryForm();
       fetchProducts();
-    } else {
+    } else if (entryMode === 'new') {
+      resetExistingStockForm();
+      resetBulkEntryForm();
+      fetchMasterProducts();
+      fetchProviders();
+    } else if (entryMode === 'bulk') {
+      resetFormData();
       resetExistingStockForm();
       fetchMasterProducts();
       fetchProviders();
@@ -118,6 +142,42 @@ export default function Entries() {
     }
   };
 
+  const handleBulkEntryChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setBulkEntryData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleProductLineChange = (index: number, e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    const newProducts = [...bulkEntryData.products];
+    newProducts[index] = { ...newProducts[index], [name]: value };
+    setBulkEntryData(prev => ({ ...prev, products: newProducts }));
+  };
+
+  const addProductLine = () => {
+    setBulkEntryData(prev => ({
+      ...prev,
+      products: [
+        ...prev.products,
+        {
+          maestro_producto_id: '',
+          cantidad: 1,
+          numero_lote: '',
+          fecha_vencimiento: '',
+          condicion: 'bueno',
+          observaciones: '',
+        },
+      ],
+    }));
+  };
+
+  const removeProductLine = (index: number) => {
+    setBulkEntryData(prev => ({
+      ...prev,
+      products: prev.products.filter((_, i) => i !== index),
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -125,8 +185,10 @@ export default function Entries() {
     try {
       if (entryMode === 'existing') {
         await handleAddExistingStock();
-      } else {
+      } else if (entryMode === 'new') {
         await handleAddNewProduct();
+      } else if (entryMode === 'bulk') {
+        await handleBulkEntrySubmit();
       }
     } catch (err: any) {
       toast.error(err.message || 'Error al registrar la entrada.');
@@ -209,6 +271,90 @@ export default function Entries() {
     resetFormData();
   };
 
+  const handleBulkEntrySubmit = async () => {
+    if (!user) {
+      throw new Error('Usuario no autenticado.');
+    }
+
+    if (!bulkEntryData.proveedor_id || !bulkEntryData.numero_guia || bulkEntryData.products.length === 0) {
+      throw new Error('Por favor, completa todos los campos requeridos y añade al menos un producto.');
+    }
+
+    try {
+      const movementsToInsert = [];
+
+      for (const productEntry of bulkEntryData.products) {
+        // Check if product already exists based on maestro_producto_id and numero_lote
+        const { data: existingProduct, error: fetchError } = await supabase
+          .from('productos')
+          .select('id, stock_actual')
+          .eq('maestro_producto_id', productEntry.maestro_producto_id)
+          .eq('numero_lote', productEntry.numero_lote)
+          .single();
+
+        if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 means no rows found
+          throw fetchError;
+        }
+
+        let productId;
+
+        if (existingProduct) {
+          // Update existing product stock
+          const newStock = existingProduct.stock_actual + productEntry.cantidad;
+          const { error: updateError } = await supabase
+            .from('productos')
+            .update({ stock_actual: newStock, actualizado_en: new Date().toISOString() })
+            .eq('id', existingProduct.id);
+          if (updateError) throw updateError;
+          productId = existingProduct.id;
+        } else {
+          // Create new product
+          const selectedMasterProduct = masterProducts.find(mp => mp.id === productEntry.maestro_producto_id);
+          if (!selectedMasterProduct) {
+            throw new Error(`Producto maestro no encontrado para ID: ${productEntry.maestro_producto_id}`);
+          }
+
+          const { data: newProduct, error: insertProductError } = await supabase
+            .from('productos')
+            .insert({
+              maestro_producto_id: productEntry.maestro_producto_id,
+              proveedor_id: bulkEntryData.proveedor_id,
+              stock_actual: productEntry.cantidad,
+              numero_lote: productEntry.numero_lote,
+              fecha_vencimiento: productEntry.fecha_vencimiento,
+              condicion: productEntry.condicion,
+              observaciones: productEntry.observaciones,
+              fecha_ingreso: new Date().toISOString(),
+            })
+            .select('id')
+            .single();
+
+          if (insertProductError || !newProduct) throw insertProductError || new Error('Error al crear el producto.');
+          productId = newProduct.id;
+        }
+
+        movementsToInsert.push({
+          producto_id: productId,
+          usuario_id: user.id,
+          tipo_movimiento: 'entrada',
+          cantidad: productEntry.cantidad,
+          motivo: 'Ingreso masivo desde proveedor',
+          condicion: productEntry.condicion,
+          numero_guia: bulkEntryData.numero_guia,
+        });
+      }
+
+      // Insert all movements in a single batch operation
+      const { error: movementsError } = await supabase.from('movimientos').insert(movementsToInsert);
+      if (movementsError) throw movementsError;
+
+      toast.success('Entrada masiva registrada correctamente.');
+      resetBulkEntryForm();
+    } catch (error: any) {
+      throw new Error(error.message || 'Error al registrar la entrada masiva.');
+    }
+  };
+
   const resetExistingStockForm = () => {
     setSelectedProductId('');
     setQuantity(0);
@@ -227,6 +373,14 @@ export default function Entries() {
       fecha_vencimiento: '',
       observaciones: '',
       numero_guia: ''
+    });
+  };
+
+  const resetBulkEntryForm = () => {
+    setBulkEntryData({
+      proveedor_id: '',
+      numero_guia: '',
+      products: [],
     });
   };
 
@@ -250,6 +404,13 @@ export default function Entries() {
             Registrar Nuevo Producto
           </button>
         )}
+        {canAddBulk && (
+          <button 
+            onClick={() => setEntryMode('bulk')} 
+            className={`w-full rounded-md px-3 py-2 text-sm font-medium ${entryMode === 'bulk' ? 'bg-white text-gray-900 shadow' : 'text-gray-600 hover:bg-white/50'}`}>
+            Entrada Masiva
+          </button>
+        )}
       </div>
 
       <Card>
@@ -268,7 +429,7 @@ export default function Entries() {
               <Input label="Cantidad a Ingresar" type="number" name="cantidad" min={0} value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} required disabled={!canAddExisting || loading} />
               <Input label="Motivo" name="motivo" value={motivoExistente} onChange={(e) => setMotivoExistente(e.target.value)} required disabled={!canAddExisting || loading} />
             </div>
-          ) : (
+          ) : entryMode === 'new' ? (
             <div className="space-y-4">
               <h3 className="text-lg font-medium">Registrar Nuevo Producto (Proveedor)</h3>
               {!canAddNew && <p className="text-red-500">No tienes permiso.</p>}
@@ -288,19 +449,121 @@ export default function Entries() {
               <textarea name="observaciones" value={formData.observaciones} onChange={handleFormChange} placeholder="Observaciones..." className="w-full border rounded px-3 py-2" disabled={!canAddNew || loading} />
               <Input label="Número de Guía" name="numero_guia" value={formData.numero_guia} onChange={handleFormChange} disabled={!canAddNew || loading} />
             </div>
+          ) : (
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium">Registrar Entrada Masiva (Proveedor)</h3>
+              {!canAddBulk && <p className="text-red-500">No tienes permiso.</p>}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Select
+                  label="Proveedor"
+                  name="proveedor_id"
+                  options={providers.map(p => ({ value: p.id, label: p.nombre }))}
+                  value={bulkEntryData.proveedor_id}
+                  onChange={handleBulkEntryChange}
+                  required
+                  disabled={loading}
+                />
+                <Input
+                  label="Número de Guía"
+                  name="numero_guia"
+                  value={bulkEntryData.numero_guia}
+                  onChange={handleBulkEntryChange}
+                  required
+                  disabled={loading}
+                />
+              </div>
+
+              <h3 className="text-lg font-medium mt-6">Productos a Ingresar</h3>
+              <div className="space-y-4">
+                {bulkEntryData.products.map((product, index) => (
+                  <div key={index} className="border p-4 rounded-lg relative">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => removeProductLine(index)}
+                      className="absolute top-2 right-2 text-red-500 hover:text-red-700"
+                      disabled={loading}
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </Button>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Select
+                        label="Producto del Catálogo"
+                        name="maestro_producto_id"
+                        options={masterProducts.map(p => ({ value: p.id, label: p.nombre }))}
+                        value={product.maestro_producto_id}
+                        onChange={(e) => handleProductLineChange(index, e)}
+                        required
+                        disabled={loading}
+                      />
+                      <Input
+                        label="Cantidad"
+                        name="cantidad"
+                        type="number"
+                        min={1}
+                        value={product.cantidad}
+                        onChange={(e) => handleProductLineChange(index, e)}
+                        required
+                        disabled={loading}
+                      />
+                      <Input
+                        label="N° Lote"
+                        name="numero_lote"
+                        value={product.numero_lote}
+                        onChange={(e) => handleProductLineChange(index, e)}
+                        required
+                        disabled={loading}
+                      />
+                      <Input
+                        label="Fecha de Vencimiento"
+                        name="fecha_vencimiento"
+                        type="date"
+                        value={product.fecha_vencimiento}
+                        onChange={(e) => handleProductLineChange(index, e)}
+                        required
+                        disabled={loading}
+                      />
+                      <Select
+                        label="Condición"
+                        name="condicion"
+                        options={[{ value: 'bueno', label: 'Bueno' }, { value: 'cuarentena', label: 'Cuarentena' }]}
+                        value={product.condicion}
+                        onChange={(e) => handleProductLineChange(index, e)}
+                        required
+                        disabled={loading}
+                      />
+                    </div>
+                    <textarea
+                      name="observaciones"
+                      value={product.observaciones}
+                      onChange={(e) => handleProductLineChange(index, e)}
+                      placeholder="Observaciones..."
+                      className="w-full border rounded px-3 py-2 mt-4"
+                      disabled={loading}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <Button type="button" onClick={addProductLine} variant="outline" className="w-full mt-4" disabled={loading}>
+                <Plus className="w-4 h-4 mr-2" /> Añadir Producto
+              </Button>
+            </div>
           )}
           <div className="flex justify-end">
-            <Button type="submit" isLoading={loading} disabled={loading || (entryMode === 'existing' && (!canAddExisting || !selectedProductId || quantity <= 0)) || (entryMode === 'new' && (!canAddNew || !formData.maestro_producto_id || !formData.proveedor_id))}>
-              {entryMode === 'existing' ? 'Añadir Stock' : 'Registrar Nuevo Producto'}
+            <Button type="submit" isLoading={loading} disabled={loading || (entryMode === 'existing' && (!canAddExisting || !selectedProductId || quantity <= 0)) || (entryMode === 'new' && (!canAddNew || !formData.maestro_producto_id || !formData.proveedor_id)) || (entryMode === 'bulk' && (!canAddBulk || !bulkEntryData.proveedor_id || !bulkEntryData.numero_guia || bulkEntryData.products.length === 0))}>
+              {entryMode === 'existing' ? 'Añadir Stock' : entryMode === 'new' ? 'Registrar Nuevo Producto' : 'Registrar Entrada Masiva'}
             </Button>
           </div>
         </form>
       </Card>
+      {/* ProviderModal is reused from Entries.tsx */}
       <ProviderModal isOpen={showProviderModal} onClose={() => setShowProviderModal(false)} onProviderCreated={fetchProviders} />
     </div>
   );
 }
 
+// Reusing ProviderModal from Entries.tsx for consistency
 function ProviderModal({ isOpen, onClose, onProviderCreated }: { isOpen: boolean, onClose: () => void, onProviderCreated: () => void }) {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({ nombre: '', direccion: '', clasificacion: 'medicamentos' });
