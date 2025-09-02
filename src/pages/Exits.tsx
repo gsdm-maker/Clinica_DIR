@@ -45,7 +45,6 @@ export default function Exits() {
         if (error) throw error;
         
         setAllMasterProducts(data || []);
-        // Get unique categories from the fetched products
         const uniqueCategories = Array.from(new Set(data.map(p => p.categoria).filter(Boolean)));
         setCategories(uniqueCategories.sort());
 
@@ -56,7 +55,6 @@ export default function Exits() {
     fetchMasterData();
   }, []);
 
-  // Memoized filtered products based on selected category
   const filteredMasterProducts = useMemo(() => {
     if (!selectedCategory) {
       return allMasterProducts;
@@ -65,7 +63,6 @@ export default function Exits() {
   }, [selectedCategory, allMasterProducts]);
 
 
-  // Fetch available lots when a master product is selected
   useEffect(() => {
     const fetchAvailableLots = async () => {
       if (!selectedMasterProductId) {
@@ -74,7 +71,6 @@ export default function Exits() {
       }
       setLoading(true);
       try {
-        // Fetch ALL lots, not just available ones
         const { data, error } = await supabase
           .from('productos')
           .select('*, maestro_productos(nombre)')
@@ -96,7 +92,7 @@ export default function Exits() {
 
   const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedCategory(e.target.value);
-    setSelectedMasterProductId(''); // Reset product selection
+    setSelectedMasterProductId('');
     setAvailableLots([]);
     setCurrentQuantities(new Map());
   };
@@ -186,7 +182,6 @@ export default function Exits() {
       if (error) throw error;
 
       toast.success('Salida masiva registrada correctamente.');
-      // Reset everything
       setShoppingCart(new Map());
       setMotivo('');
       setSelectedMasterProductId(''); 
@@ -211,7 +206,6 @@ export default function Exits() {
         <p className="text-gray-600 mt-2">Crea un "carrito" de salida añadiendo lotes de diferentes productos.</p>
       </div>
 
-      {/* SECCIÓN 1: SELECCIÓN DE PRODUCTOS */}
       <Card className="p-6 space-y-6 mb-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Select
@@ -237,7 +231,6 @@ export default function Exits() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Recomendación</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">N° Lote</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Condición</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock Actual</th>
@@ -246,18 +239,13 @@ export default function Exits() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {availableLots.map((lot, index) => {
+                {availableLots.map((lot) => {
                   const isDispatchable = lot.stock_actual > 0 && lot.condicion === 'Bueno';
-                  const isRecommended = isDispatchable && index === availableLots.findIndex(l => l.stock_actual > 0 && l.condicion === 'Bueno');
-
                   return (
-                    <tr key={lot.id} className={clsx(!isDispatchable && 'bg-gray-100 text-gray-400', isRecommended && 'bg-green-50')}>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm">
-                        {isRecommended && <Badge variant="success">FEFO</Badge>}
-                      </td>
+                    <tr key={lot.id} className={clsx(!isDispatchable && 'bg-gray-100 text-gray-400')}>
                       <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">{lot.numero_lote}</td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm">
-                        <Badge variant={lot.condicion === 'Bueno' ? 'default' : 'destructive'}>{lot.condicion}</Badge>
+                        <Badge variant={isDispatchable ? 'default' : 'destructive'}>{lot.condicion}</Badge>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm">{lot.stock_actual}</td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm">
