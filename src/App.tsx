@@ -47,6 +47,7 @@ function AppRoutes() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/inventory" element={<Inventory />} />
         <Route path="/entries" element={<Entries />} />
+        <Route path="/exits" element={<Exits />} />
         <Route path="/product-master" element={<ProductMaster />} />
       </Route>
 
