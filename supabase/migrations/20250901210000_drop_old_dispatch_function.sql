@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public.registrar_salida_producto(uuid, integer, text, uuid);
