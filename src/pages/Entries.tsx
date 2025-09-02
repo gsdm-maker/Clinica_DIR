@@ -235,15 +235,34 @@ export default function Entries() {
   };
 
   const handleAddNewProduct = async () => {
-    if (!canAddNew || !formData.maestro_producto_id || !formData.proveedor_id) throw new Error('Por favor, completa todos los campos requeridos.');
+    if (!canAddNew || !formData.maestro_producto_id || !formData.proveedor_id || !formData.numero_lote) {
+      throw new Error('Por favor, completa todos los campos requeridos, incluyendo el número de lote.');
+    }
 
+    const upperCaseLote = formData.numero_lote.toUpperCase();
+
+    // 1. Check for duplicate numero_lote
+    const { data: existingLote, error: loteError } = await supabase
+      .from('productos')
+      .select('id')
+      .eq('numero_lote', upperCaseLote)
+      .single();
+
+    if (loteError && loteError.code !== 'PGRST116') { // Ignore 'No rows found' error
+      throw new Error(`Error al verificar el lote: ${loteError.message}`);
+    }
+    if (existingLote) {
+      throw new Error(`El número de lote "${upperCaseLote}" ya existe. Por favor, ingrese un número de lote único.`);
+    }
+
+    // 2. Insert new product with uppercase numero_lote
     const { data: newProduct, error: insertError } = await supabase
       .from('productos')
       .insert([{
         maestro_producto_id: formData.maestro_producto_id,
         proveedor_id: formData.proveedor_id,
         stock_actual: Number(formData.stock_actual),
-        numero_lote: formData.numero_lote,
+        numero_lote: upperCaseLote, // Use uppercase
         fecha_vencimiento: formData.fecha_vencimiento,
         condicion: formData.condicion,
         observaciones: formData.observaciones,
@@ -261,7 +280,7 @@ export default function Entries() {
         tipo_movimiento: 'entrada',
         cantidad: Number(formData.stock_actual),
         motivo: 'Ingreso de nuevo producto desde proveedor',
-        condicion: formData.condicion, // Columna obligatoria añadida
+        condicion: formData.condicion,
         numero_guia: formData.numero_guia
       }]);
       if (movementError) throw movementError;
@@ -281,75 +300,89 @@ export default function Entries() {
     }
 
     try {
-      const movementsToInsert = [];
+        const loteSet = new Set<string>();
+        for (const product of bulkEntryData.products) {
+            if (!product.numero_lote) throw new Error('Todos los productos deben tener un número de lote.');
+            const upperCaseLote = product.numero_lote.toUpperCase();
+            if (loteSet.has(upperCaseLote)) throw new Error(`El número de lote "${upperCaseLote}" está duplicado en el formulario.`);
+            loteSet.add(upperCaseLote);
+        }
 
-      for (const productEntry of bulkEntryData.products) {
-        // Check if product already exists based on maestro_producto_id and numero_lote
+        const movementsToInsert = [];
+
+        for (const productEntry of bulkEntryData.products) {
+        const upperCaseLote = productEntry.numero_lote.toUpperCase();
+
         const { data: existingProduct, error: fetchError } = await supabase
-          .from('productos')
-          .select('id, stock_actual')
-          .eq('maestro_producto_id', productEntry.maestro_producto_id)
-          .eq('numero_lote', productEntry.numero_lote)
-          .single();
+            .from('productos')
+            .select('id, stock_actual')
+            .eq('maestro_producto_id', productEntry.maestro_producto_id)
+            .eq('numero_lote', upperCaseLote)
+            .single();
 
-        if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 means no rows found
-          throw fetchError;
+        if (fetchError && fetchError.code !== 'PGRST116') {
+            throw fetchError;
         }
 
         let productId;
 
         if (existingProduct) {
-          // Update existing product stock
-          const newStock = existingProduct.stock_actual + productEntry.cantidad;
-          const { error: updateError } = await supabase
-            .from('productos')
-            .update({ stock_actual: newStock, actualizado_en: new Date().toISOString() })
-            .eq('id', existingProduct.id);
-          if (updateError) throw updateError;
-          productId = existingProduct.id;
+            const newStock = existingProduct.stock_actual + productEntry.cantidad;
+            const { error: updateError } = await supabase
+                .from('productos')
+                .update({ stock_actual: newStock, actualizado_en: new Date().toISOString() })
+                .eq('id', existingProduct.id);
+            if (updateError) throw updateError;
+            productId = existingProduct.id;
         } else {
-          // Create new product
-          const selectedMasterProduct = masterProducts.find(mp => mp.id === productEntry.maestro_producto_id);
-          if (!selectedMasterProduct) {
-            throw new Error(`Producto maestro no encontrado para ID: ${productEntry.maestro_producto_id}`);
-          }
+            const { data: existingLote, error: loteError } = await supabase
+                .from('productos')
+                .select('id')
+                .eq('numero_lote', upperCaseLote)
+                .single();
+            
+            if (loteError && loteError.code !== 'PGRST116') {
+                throw new Error(`Error al verificar el lote: ${loteError.message}`);
+            }
+            if (existingLote) {
+                throw new Error(`El número de lote "${upperCaseLote}" ya existe. No se puede crear un nuevo producto con este lote.`);
+            }
 
-          const { data: newProduct, error: insertProductError } = await supabase
+            const { data: newProduct, error: insertProductError } = await supabase
             .from('productos')
             .insert({
-              maestro_producto_id: productEntry.maestro_producto_id,
-              proveedor_id: bulkEntryData.proveedor_id,
-              stock_actual: productEntry.cantidad,
-              numero_lote: productEntry.numero_lote,
-              fecha_vencimiento: productEntry.fecha_vencimiento,
-              condicion: productEntry.condicion,
-              observaciones: productEntry.observaciones,
-              fecha_ingreso: new Date().toISOString(),
+                maestro_producto_id: productEntry.maestro_producto_id,
+                proveedor_id: bulkEntryData.proveedor_id,
+                stock_actual: productEntry.cantidad,
+                numero_lote: upperCaseLote,
+                fecha_vencimiento: productEntry.fecha_vencimiento,
+                condicion: productEntry.condicion,
+                observaciones: productEntry.observaciones,
+                fecha_ingreso: new Date().toISOString(),
             })
             .select('id')
             .single();
 
-          if (insertProductError || !newProduct) throw insertProductError || new Error('Error al crear el producto.');
-          productId = newProduct.id;
+            if (insertProductError || !newProduct) throw insertProductError || new Error('Error al crear el producto.');
+            productId = newProduct.id;
         }
 
         movementsToInsert.push({
-          producto_id: productId,
-          usuario_id: user.id,
-          tipo_movimiento: 'entrada',
-          cantidad: productEntry.cantidad,
-          motivo: 'Ingreso masivo desde proveedor',
-          condicion: productEntry.condicion,
-          numero_guia: bulkEntryData.numero_guia,
+            producto_id: productId,
+            usuario_id: user.id,
+            tipo_movimiento: 'entrada',
+            cantidad: productEntry.cantidad,
+            motivo: 'Ingreso masivo desde proveedor',
+            condicion: productEntry.condicion,
+            numero_guia: bulkEntryData.numero_guia,
         });
-      }
+        }
 
-      // Insert all movements in a single batch operation
-      const { error: movementsError } = await supabase.from('movimientos').insert(movementsToInsert);
-      if (movementsError) throw movementsError;
+        const { error: movementsError } = await supabase.from('movimientos').insert(movementsToInsert);
+        if (movementsError) throw movementsError;
 
-      toast.success('Entrada masiva registrada correctamente.');
-      resetBulkEntryForm();
+        toast.success('Entrada masiva registrada correctamente.');
+        resetBulkEntryForm();
     } catch (error: any) {
       throw new Error(error.message || 'Error al registrar la entrada masiva.');
     }

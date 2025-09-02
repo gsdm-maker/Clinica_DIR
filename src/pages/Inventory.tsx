@@ -146,22 +146,51 @@ export function Inventory() {
     setLoading(true);
 
     try {
+      const isCreatingNew = isEditing && !selectedProduct;
+
+      // For new products, validate and transform the lot number
+      if (isCreatingNew) {
+        if (!formData.numero_lote) {
+          throw new Error('El campo "N° Lote" es obligatorio.');
+        }
+        const upperCaseLote = formData.numero_lote.toUpperCase();
+
+        // Check for duplicate lot number
+        const { data: existingLote, error: loteError } = await supabase
+          .from('productos')
+          .select('id')
+          .eq('numero_lote', upperCaseLote)
+          .single();
+
+        if (loteError && loteError.code !== 'PGRST116') { // Ignore 'No rows found'
+          throw new Error(`Error al verificar el lote: ${loteError.message}`);
+        }
+        if (existingLote) {
+          throw new Error(`El número de lote "${upperCaseLote}" ya existe. Use un número de lote único.`);
+        }
+        
+        // Use the uppercase lot number for the new product
+        formData.numero_lote = upperCaseLote;
+      }
+
       const productData = {
         ...formData,
         stock_actual: Number(formData.stock_actual),
-        fecha_ingreso: new Date().toISOString(),
+        fecha_ingreso: isCreatingNew ? new Date().toISOString() : undefined,
         bloqueado: formData.condicion === 'vencido',
       };
-
-      console.log('Datos a enviar a Supabase:', productData);
+      
+      if (!isCreatingNew) {
+          delete productData.fecha_ingreso; // Don't update ingress date when editing
+      }
 
       if (isEditing && selectedProduct) {
-        // Logic for updating remains the same
+        // Logic for updating
         const { error } = await supabase.from('productos').update(productData).eq('id', selectedProduct.id);
         if (error) throw error;
         toast.success('Producto actualizado.');
       } else {
-        // Corrected logic for creating a new product
+        // Logic for creating a new product
         const { data: newProduct, error: insertError } = await supabase
           .from('productos')
           .insert([productData])
@@ -184,7 +213,6 @@ export function Inventory() {
           }]);
 
           if (movementError) {
-            // Attempt to clean up if movement creation fails
             await supabase.from('productos').delete().eq('id', newProduct.id);
             throw movementError;
           }
@@ -398,7 +426,7 @@ export function Inventory() {
             <Select label="Proveedor *" options={providersList.map(p => ({ value: p.id, label: p.nombre }))} value={formData.proveedor_id} onChange={(e) => setFormData(p => ({ ...p, proveedor_id: e.target.value }))} required disabled={!isEditing} />
             <Input label="Stock Actual *" type="number" value={formData.stock_actual} onChange={(e) => setFormData({ ...formData, stock_actual: Number(e.target.value) })} required disabled={!isEditing} />
             <Select label="Condición *" options={conditions.map(c => ({ value: c.value, label: c.label }))} value={formData.condicion} onChange={(e) => setFormData(p => ({ ...p, condicion: e.target.value }))} required disabled={!isEditing} />
-            <Input label="N° Lote *" value={formData.numero_lote} onChange={(e) => setFormData(p => ({ ...p, numero_lote: e.target.value }))} required disabled={!isEditing} />
+                        <Input label="N° Lote *" value={formData.numero_lote} onChange={(e) => setFormData(p => ({ ...p, numero_lote: e.target.value }))} required disabled={isEditing && !!selectedProduct} />
             <Input label="Fecha de Vencimiento *" type="date" value={formData.fecha_vencimiento} onChange={(e) => setFormData(p => ({ ...p, fecha_vencimiento: e.target.value }))} required disabled={!isEditing} />
           </div>
           <div>
