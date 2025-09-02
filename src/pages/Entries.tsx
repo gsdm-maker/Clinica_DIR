@@ -241,17 +241,16 @@ export default function Entries() {
 
     const upperCaseLote = formData.numero_lote.toUpperCase();
 
-    // 1. Check for duplicate numero_lote
-    const { data: existingLote, error: loteError } = await supabase
+    // 1. Check for duplicate numero_lote more robustly
+    const { data: existingProducts, error: loteError } = await supabase
       .from('productos')
       .select('id')
-      .eq('numero_lote', upperCaseLote)
-      .single();
+      .eq('numero_lote', upperCaseLote);
 
-    if (loteError && loteError.code !== 'PGRST116') { // Ignore 'No rows found' error
+    if (loteError) {
       throw new Error(`Error al verificar el lote: ${loteError.message}`);
     }
-    if (existingLote) {
+    if (existingProducts && existingProducts.length > 0) {
       throw new Error(`El número de lote "${upperCaseLote}" ya existe. Por favor, ingrese un número de lote único.`);
     }
 
@@ -316,19 +315,19 @@ export default function Entries() {
         const upperCaseLote = productEntry.numero_lote.toUpperCase();
 
         // Check if the lot number exists ANYWHERE in the products table
-        const { data: existingLoteProduct, error: loteFetchError } = await supabase
+        const { data: existingLoteProducts, error: loteFetchError } = await supabase
           .from('productos')
           .select('id, maestro_producto_id, stock_actual')
-          .eq('numero_lote', upperCaseLote)
-          .single();
+          .eq('numero_lote', upperCaseLote);
 
-        if (loteFetchError && loteFetchError.code !== 'PGRST116') { // Handle errors other than 'not found'
+        if (loteFetchError) {
           throw loteFetchError;
         }
 
         let productId;
 
-        if (existingLoteProduct) {
+        if (existingLoteProducts && existingLoteProducts.length > 0) {
+          const existingLoteProduct = existingLoteProducts[0];
           // A product with this lot number already exists.
           // We can only add stock if it's for the exact same master product.
           if (existingLoteProduct.maestro_producto_id === productEntry.maestro_producto_id) {
