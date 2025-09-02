@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
@@ -23,31 +23,47 @@ export default function Exits() {
   const [loading, setLoading] = useState(false);
 
   // Data states
-  const [masterProducts, setMasterProducts] = useState<MasterProduct[]>([]);
-  const [selectedMasterProductId, setSelectedMasterProductId] = useState<string>('');
+  const [allMasterProducts, setAllMasterProducts] = useState<MasterProduct[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
   const [availableLots, setAvailableLots] = useState<ProductWithMaster[]>([]);
   
-  // Form states
+  // Filter & Form states
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [selectedMasterProductId, setSelectedMasterProductId] = useState<string>('');
   const [currentQuantities, setCurrentQuantities] = useState<Map<string, number>>(new Map());
   const [shoppingCart, setShoppingCart] = useState<Map<string, { lot: ProductWithMaster, quantity: number }>>(new Map());
   const [motivo, setMotivo] = useState('');
 
-  // Fetch all master products for the main dropdown
+  // Fetch all master products and derive categories
   useEffect(() => {
-    const fetchMasterProducts = async () => {
+    const fetchMasterData = async () => {
       try {
         const { data, error } = await supabase
           .from('maestro_productos')
-          .select('id, nombre')
+          .select('id, nombre, categoria')
           .order('nombre', { ascending: true });
         if (error) throw error;
-        setMasterProducts(data || []);
+        
+        setAllMasterProducts(data || []);
+        // Get unique categories from the fetched products
+        const uniqueCategories = Array.from(new Set(data.map(p => p.categoria).filter(Boolean)));
+        setCategories(uniqueCategories.sort());
+
       } catch (error) {
-        toast.error('Error al cargar la lista de productos.');
+        toast.error('Error al cargar datos maestros.');
       }
     };
-    fetchMasterProducts();
+    fetchMasterData();
   }, []);
+
+  // Memoized filtered products based on selected category
+  const filteredMasterProducts = useMemo(() => {
+    if (!selectedCategory) {
+      return allMasterProducts;
+    }
+    return allMasterProducts.filter(p => p.categoria === selectedCategory);
+  }, [selectedCategory, allMasterProducts]);
+
 
   // Fetch available lots when a master product is selected
   useEffect(() => {
@@ -58,18 +74,17 @@ export default function Exits() {
       }
       setLoading(true);
       try {
+        // Fetch ALL lots, not just available ones
         const { data, error } = await supabase
           .from('productos')
-          .select('*, maestro_productos(nombre)') // Fetch nested master product name
+          .select('*, maestro_productos(nombre)')
           .eq('maestro_producto_id', selectedMasterProductId)
-          .eq('condicion', 'Bueno')
-          .gt('stock_actual', 0)
           .order('fecha_vencimiento', { ascending: true });
         
         if (error) throw error;
         setAvailableLots(data as ProductWithMaster[] || []);
       } catch (error) {
-        toast.error('Error al cargar los lotes disponibles.');
+        toast.error('Error al cargar los lotes.');
         setAvailableLots([]);
       } finally {
         setLoading(false);
@@ -79,9 +94,16 @@ export default function Exits() {
     fetchAvailableLots();
   }, [selectedMasterProductId]);
 
+  const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedCategory(e.target.value);
+    setSelectedMasterProductId(''); // Reset product selection
+    setAvailableLots([]);
+    setCurrentQuantities(new Map());
+  };
+
   const handleMasterProductChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedMasterProductId(e.target.value);
-    setCurrentQuantities(new Map()); // Reset quantities for the new selection
+    setCurrentQuantities(new Map());
   };
 
   const handleQuantityChange = (lotId: string, quantityStr: string) => {
@@ -108,7 +130,6 @@ export default function Exits() {
     currentQuantities.forEach((quantity, lotId) => {
       const lotToAdd = availableLots.find(lot => lot.id === lotId);
       if (lotToAdd) {
-        // If item already in cart, add to its quantity. Otherwise, add new.
         const existingCartItem = newCart.get(lotId);
         const newQuantity = (existingCartItem ? existingCartItem.quantity : 0) + quantity;
         
@@ -123,7 +144,7 @@ export default function Exits() {
     });
 
     setShoppingCart(newCart);
-    setCurrentQuantities(new Map()); // Reset inputs after adding to cart
+    setCurrentQuantities(new Map());
     if(itemsAdded > 0) toast.success(`${itemsAdded} tipo(s) de producto(s) añadido(s) al carrito.`);
   };
 
@@ -169,6 +190,7 @@ export default function Exits() {
       setShoppingCart(new Map());
       setMotivo('');
       setSelectedMasterProductId(''); 
+      setSelectedCategory('');
       setAvailableLots([]);
       setCurrentQuantities(new Map());
 
@@ -191,51 +213,71 @@ export default function Exits() {
 
       {/* SECCIÓN 1: SELECCIÓN DE PRODUCTOS */}
       <Card className="p-6 space-y-6 mb-8">
-        <Select
-          label="1. Seleccionar Producto"
-          value={selectedMasterProductId}
-          onChange={handleMasterProductChange}
-          options={masterProducts.map(p => ({ value: p.id, label: p.nombre }))}
-          placeholder="Elige un producto para ver sus lotes..."
-        />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Select
+                label="1. Filtrar por Categoría"
+                value={selectedCategory}
+                onChange={handleCategoryChange}
+                options={categories.map(c => ({ value: c, label: c }))}
+                placeholder="Todas las categorías..."
+            />
+            <Select
+                label="2. Seleccionar Producto"
+                value={selectedMasterProductId}
+                onChange={handleMasterProductChange}
+                options={filteredMasterProducts.map(p => ({ value: p.id, label: p.nombre }))}
+                placeholder="Elige un producto para ver sus lotes..."
+                disabled={!selectedCategory && filteredMasterProducts.length === 0}
+            />
+        </div>
 
         {availableLots.length > 0 && (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto pt-4">
             <h3 className="text-lg font-medium text-gray-800 mb-4">Lotes Disponibles (Ordenados por vencimiento)</h3>
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Recomendación</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">N° Lote</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Condición</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock Actual</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha Venc.</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" style={{ width: '120px' }}>Cantidad a Retirar</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {availableLots.map((lot, index) => (
-                  <tr key={lot.id} className={clsx(index === 0 && 'bg-green-50 hover:bg-green-100')}>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm">
-                      {index === 0 && <Badge variant="success">FEFO</Badge>}
-                    </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{lot.numero_lote}</td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{lot.stock_actual}</td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">
-                      {lot.fecha_vencimiento ? format(new Date(lot.fecha_vencimiento), 'dd MMM yyyy', { locale: es }) : 'N/A'}
-                    </td>
-                    <td className="px-4 py-4 whitespace-nowrap">
-                      <Input
-                        type="number"
-                        min="0"
-                        max={lot.stock_actual}
-                        value={currentQuantities.get(lot.id) || ''}
-                        onChange={(e) => handleQuantityChange(lot.id, e.target.value)}
-                        className="text-sm"
-                        placeholder="0"
-                      />
-                    </td>
-                  </tr>
-                ))}
+                {availableLots.map((lot, index) => {
+                  const isDispatchable = lot.stock_actual > 0 && lot.condicion === 'Bueno';
+                  const isRecommended = isDispatchable && index === availableLots.findIndex(l => l.stock_actual > 0 && l.condicion === 'Bueno');
+
+                  return (
+                    <tr key={lot.id} className={clsx(!isDispatchable && 'bg-gray-100 text-gray-400', isRecommended && 'bg-green-50')}>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm">
+                        {isRecommended && <Badge variant="success">FEFO</Badge>}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">{lot.numero_lote}</td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm">
+                        <Badge variant={lot.condicion === 'Bueno' ? 'default' : 'destructive'}>{lot.condicion}</Badge>
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm">{lot.stock_actual}</td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm">
+                        {lot.fecha_vencimiento ? format(new Date(lot.fecha_vencimiento), 'dd MMM yyyy', { locale: es }) : 'N/A'}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <Input
+                          type="number"
+                          min="0"
+                          max={lot.stock_actual}
+                          value={currentQuantities.get(lot.id) || ''}
+                          onChange={(e) => handleQuantityChange(lot.id, e.target.value)}
+                          className="text-sm"
+                          placeholder="0"
+                          disabled={!isDispatchable}
+                        />
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
             <div className="flex justify-end mt-4">
@@ -244,12 +286,6 @@ export default function Exits() {
                     Añadir al Carrito de Salida
                 </Button>
             </div>
-          </div>
-        )}
-
-        {selectedMasterProductId && availableLots.length === 0 && !loading && (
-          <div className="text-center py-10 px-4 border-2 border-dashed border-gray-200 rounded-lg">
-              <p className="text-gray-500">No hay lotes con stock disponible para este producto.</p>
           </div>
         )}
       </Card>
