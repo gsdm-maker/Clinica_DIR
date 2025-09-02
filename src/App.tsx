@@ -7,6 +7,7 @@ import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Inventory } from './pages/Inventory';
 import Entries from './pages/Entries';
+import Exits from './pages/Exits';
 import { ProductMaster } from './pages/ProductMaster';
 
 function ProtectedRoute() {
