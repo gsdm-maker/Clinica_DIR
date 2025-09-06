@@ -39,7 +39,7 @@ export function Inventory() {
     stock_actual: 0,
     numero_lote: '',
     fecha_vencimiento: '',
-    condicion: 'bueno',
+    condicion: 'Bueno',
     observaciones: ''
   });
 
