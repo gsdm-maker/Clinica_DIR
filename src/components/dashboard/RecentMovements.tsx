@@ -52,35 +52,29 @@ export function RecentMovements({ movements }: RecentMovementsProps) {
             <div key={movement.id} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-b-0">
               <div className="flex-1">
                 <div className="flex items-center space-x-3">
-                  <Badge variant={getMovementVariant(movement.type)}>
-                    {getMovementTypeLabel(movement.type)}
+                  <Badge variant={getMovementVariant(movement.tipo_movimiento)}> {/* Use tipo_movimiento */}
+                    {getMovementTypeLabel(movement.tipo_movimiento)} {/* Use tipo_movimiento */}
                   </Badge>
                   <h4 className="text-sm font-medium text-gray-900">
-                    {movement.producto?.descripcion || 'Producto no disponible'}
+                    {movement.producto_nombre || 'Producto no disponible'} {/* Use producto_nombre */}
                   </h4>
                 </div>
                 <div className="mt-1 flex items-center space-x-4">
                   <span className="text-sm text-gray-500">
-                    Cantidad: {movement.quantity}
+                    Cantidad: {movement.cantidad} {/* Use cantidad */}
                   </span>
                   <span className="text-sm text-gray-500">
-                    Usuario: {movement.usuario?.name || 'Usuario no disponible'}
+                    Usuario: {movement.usuario_email || 'Usuario no disponible'} {/* Use usuario_email */}
                   </span>
                 </div>
-                {movement.patient_name && (
-                  <div className="mt-1">
-                    <span className="text-sm text-gray-500">
-                      Paciente: {movement.patient_name} ({movement.patient_rut})
-                    </span>
-                  </div>
-                )}
+                {/* Removed patient_name and patient_rut as they are not in the SQL output for recent_movements */}
               </div>
               <div className="text-right">
                 <p className="text-sm text-gray-500">
-                  {formatDate(movement.created_at, 'dd MMM yyyy')}
+                  {formatDate(movement.fecha, 'dd MMM yyyy')} {/* Use fecha */}
                 </p>
                 <p className="text-xs text-gray-400">
-                  {formatDate(movement.created_at, 'HH:mm')}
+                  {formatDate(movement.fecha, 'HH:mm')} {/* Use fecha */}
                 </p>
               </div>
             </div>

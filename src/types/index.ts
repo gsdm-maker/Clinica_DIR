@@ -39,15 +39,23 @@ export interface Product {
 
 export interface Movement {
   id: string;
-  producto_id: string; // Ahora se refiere al ID del lote (tabla `productos`)
-  usuario_id: string;
-  tipo: 'entrada' | 'salida_administracion' | 'salida_eliminacion';
-  cantidad: number;
-  motivo?: string;
+  // Estas propiedades vendrán directamente de la salida de la función SQL
+  producto_nombre: string; // De SQL's producto_nombre
+  numero_lote?: string; // De SQL's numero_lote
+  tipo_movimiento: 'entrada' | 'salida_administracion' | 'salida_eliminacion'; // De SQL's tipo_movimiento
+  cantidad: number; // De SQL's cantidad
+  condicion: string; // De SQL's condicion
+  usuario_email: string; // De SQL's usuario_email
+  motivo?: string; // De SQL's motivo
+  fecha: string; // De SQL's fecha (creado_en)
+
+  // Mantener estas para otras partes de la aplicación si es necesario, pero no serán pobladas por recent_movements de get_dashboard_stats
+  producto_id?: string;
+  usuario_id?: string;
   rut_paciente?: string;
   nombre_paciente?: string;
-  creado_en: string;
-  producto?: Product; // El producto ahora es un lote
+  creado_en?: string; // Esto será reemplazado por 'fecha' de SQL
+  producto?: Product;
   usuario?: User;
 }
 
