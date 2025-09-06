@@ -239,13 +239,22 @@ export default function Exits() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {availableLots.map((lot) => {
-                  const isDispatchable = lot.stock_actual > 0 && lot.condicion === 'Bueno';
+                {availableLots.map((lot, index) => {
+                  const isFefoRecommended = index === 0 && lot.stock_actual > 0 && lot.condicion === 'Bueno';
+                  const isDispatchable = lot.stock_actual > 0;
+                  const rowClassName = clsx({
+                    'bg-green-50': isFefoRecommended,
+                    'bg-gray-100 text-gray-400': !isDispatchable,
+                  });
+
                   return (
-                    <tr key={lot.id} className={clsx(!isDispatchable && 'bg-gray-100 text-gray-400')}>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">{lot.numero_lote}</td>
+                    <tr key={lot.id} className={rowClassName}>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
+                        {lot.numero_lote}
+                        {isFefoRecommended && <Badge variant="default" className="ml-2 bg-green-600 text-white">FEFO</Badge>}
+                      </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm">
-                        <Badge variant={isDispatchable ? 'default' : 'destructive'}>{lot.condicion}</Badge>
+                        <Badge variant={lot.condicion === 'Bueno' ? 'default' : 'destructive'}>{lot.condicion}</Badge>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm">{lot.stock_actual}</td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm">
