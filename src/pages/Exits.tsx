@@ -7,16 +7,24 @@ import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 import { Badge } from '../components/ui/Badge';
-import { MasterProduct, Product } from '../types';
+import { MasterProduct } from '../types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { clsx } from 'clsx';
 import { Trash2, ShoppingCart } from 'lucide-react';
 
-// Extender el tipo Product para incluir la relación anidada
-type ProductWithMaster = Product & {
-  maestro_productos: Pick<MasterProduct, 'nombre'>;
+// Tipo para los datos que devuelve la función get_dispatch_lots
+type DispatchLot = {
+  producto_id: string;
+  numero_lote: string;
+  fecha_vencimiento: string | null;
+  condicion: string;
+  stock_actual: number;
+  maestro_producto_nombre: string;
 };
+
+// Helper para generar una clave única para cada lote/condición
+const getLotKey = (lot: DispatchLot) => `${lot.producto_id}-${lot.condicion}`;
 
 export default function Exits() {
   const { user } = useAuth();
@@ -25,13 +33,13 @@ export default function Exits() {
   // Data states
   const [allMasterProducts, setAllMasterProducts] = useState<MasterProduct[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
-  const [availableLots, setAvailableLots] = useState<ProductWithMaster[]>([]);
+  const [availableLots, setAvailableLots] = useState<DispatchLot[]>([]);
   
   // Filter & Form states
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedMasterProductId, setSelectedMasterProductId] = useState<string>('');
   const [currentQuantities, setCurrentQuantities] = useState<Map<string, number>>(new Map());
-  const [shoppingCart, setShoppingCart] = useState<Map<string, { lot: ProductWithMaster, quantity: number }>>(new Map());
+  const [shoppingCart, setShoppingCart] = useState<Map<string, { lot: DispatchLot, quantity: number }>>(new Map());
   const [motivo, setMotivo] = useState('');
 
   // Fetch all master products and derive categories
@@ -71,16 +79,14 @@ export default function Exits() {
       }
       setLoading(true);
       try {
-        const { data, error } = await supabase
-          .from('productos')
-          .select('*, maestro_productos(nombre)')
-          .eq('maestro_producto_id', selectedMasterProductId)
-          .order('fecha_vencimiento', { ascending: true });
+        const { data, error } = await supabase.rpc('get_dispatch_lots', {
+          p_maestro_producto_id: selectedMasterProductId,
+        });
         
         if (error) throw error;
-        setAvailableLots(data as ProductWithMaster[] || []);
-      } catch (error) {
-        toast.error('Error al cargar los lotes.');
+        setAvailableLots(data || []);
+      } catch (error: any) {
+        toast.error(`Error al cargar los lotes: ${error.message}`);
         setAvailableLots([]);
       } finally {
         setLoading(false);
@@ -102,14 +108,14 @@ export default function Exits() {
     setCurrentQuantities(new Map());
   };
 
-  const handleQuantityChange = (lotId: string, quantityStr: string) => {
+  const handleQuantityChange = (lotKey: string, quantityStr: string) => {
     const newQuantities = new Map(currentQuantities);
     const quantity = parseInt(quantityStr, 10);
 
     if (quantityStr === '' || isNaN(quantity) || quantity <= 0) {
-      newQuantities.delete(lotId);
+      newQuantities.delete(lotKey);
     } else {
-      newQuantities.set(lotId, quantity);
+      newQuantities.set(lotKey, quantity);
     }
     setCurrentQuantities(newQuantities);
   };
@@ -123,30 +129,30 @@ export default function Exits() {
     const newCart = new Map(shoppingCart);
     let itemsAdded = 0;
 
-    currentQuantities.forEach((quantity, lotId) => {
-      const lotToAdd = availableLots.find(lot => lot.id === lotId);
+    currentQuantities.forEach((quantity, lotKey) => {
+      const lotToAdd = availableLots.find(lot => getLotKey(lot) === lotKey);
       if (lotToAdd) {
-        const existingCartItem = newCart.get(lotId);
+        const existingCartItem = newCart.get(lotKey);
         const newQuantity = (existingCartItem ? existingCartItem.quantity : 0) + quantity;
         
         if (newQuantity > lotToAdd.stock_actual) {
-            toast.error(`No puedes añadir más de ${lotToAdd.stock_actual} unidades del lote ${lotToAdd.numero_lote}`);
+            toast.error(`No puedes añadir más de ${lotToAdd.stock_actual} unidades del lote ${lotToAdd.numero_lote} (${lotToAdd.condicion})`);
             return;
         }
 
-        newCart.set(lotId, { lot: lotToAdd, quantity: newQuantity });
+        newCart.set(lotKey, { lot: lotToAdd, quantity: newQuantity });
         itemsAdded++;
       }
     });
 
     setShoppingCart(newCart);
     setCurrentQuantities(new Map());
-    if(itemsAdded > 0) toast.success(`${itemsAdded} tipo(s) de producto(s) añadido(s) al carrito.`);
+    if(itemsAdded > 0) toast.success(`${itemsAdded} tipo(s) de lote(s) añadido(s) al carrito.`);
   };
 
-  const handleRemoveFromCart = (lotId: string) => {
+  const handleRemoveFromCart = (lotKey: string) => {
     const newCart = new Map(shoppingCart);
-    newCart.delete(lotId);
+    newCart.delete(lotKey);
     setShoppingCart(newCart);
   };
 
@@ -168,8 +174,9 @@ export default function Exits() {
     setLoading(true);
 
     const salidas = Array.from(shoppingCart.values()).map(item => ({
-      producto_id: item.lot.id,
+      producto_id: item.lot.producto_id,
       cantidad: item.quantity,
+      condicion: item.lot.condicion,
     }));
 
     try {
@@ -203,7 +210,7 @@ export default function Exits() {
     <div>
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Salida de Productos</h1>
-        <p className="text-gray-600 mt-2">Crea un "carrito" de salida añadiendo lotes de diferentes productos.</p>
+        <p className="text-gray-600 mt-2">Selecciona un producto para ver sus lotes disponibles desglosados por condición.</p>
       </div>
 
       <Card className="p-6 space-y-6 mb-8">
@@ -221,7 +228,7 @@ export default function Exits() {
                 onChange={handleMasterProductChange}
                 options={filteredMasterProducts.map(p => ({ value: p.id, label: p.nombre }))}
                 placeholder="Elige un producto para ver sus lotes..."
-                disabled={!selectedCategory && filteredMasterProducts.length === 0}
+                disabled={filteredMasterProducts.length === 0}
             />
         </div>
 
@@ -233,13 +240,14 @@ export default function Exits() {
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">N° Lote</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Condición</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock Actual</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock Disp.</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha Venc.</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" style={{ width: '120px' }}>Cantidad a Retirar</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {availableLots.map((lot, index) => {
+                  const lotKey = getLotKey(lot);
                   const isFefoRecommended = index === 0 && lot.stock_actual > 0 && lot.condicion === 'Bueno';
                   const isDispatchable = lot.stock_actual > 0;
                   const rowClassName = clsx({
@@ -248,7 +256,7 @@ export default function Exits() {
                   });
 
                   return (
-                    <tr key={lot.id} className={rowClassName}>
+                    <tr key={lotKey} className={rowClassName}>
                       <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
                         {lot.numero_lote}
                         {isFefoRecommended && <Badge variant="default" className="ml-2 bg-green-600 text-white">FEFO</Badge>}
@@ -265,8 +273,8 @@ export default function Exits() {
                           type="number"
                           min="0"
                           max={lot.stock_actual}
-                          value={currentQuantities.get(lot.id) || ''}
-                          onChange={(e) => handleQuantityChange(lot.id, e.target.value)}
+                          value={currentQuantities.get(lotKey) || ''}
+                          onChange={(e) => handleQuantityChange(lotKey, e.target.value)}
                           className="text-sm"
                           placeholder="0"
                           disabled={!isDispatchable}
@@ -297,23 +305,30 @@ export default function Exits() {
                         <tr>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Producto</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">N° Lote</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Condición</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cantidad</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acción</th>
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                        {cartItems.map(({ lot, quantity }) => (
-                            <tr key={lot.id}>
-                                <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{lot.maestro_productos.nombre}</td>
+                        {cartItems.map(({ lot, quantity }) => {
+                          const lotKey = getLotKey(lot);
+                          return (
+                            <tr key={lotKey}>
+                                <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{lot.maestro_producto_nombre}</td>
                                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{lot.numero_lote}</td>
+                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">
+                                  <Badge variant={lot.condicion === 'Bueno' ? 'default' : 'destructive'}>{lot.condicion}</Badge>
+                                </td>
                                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{quantity}</td>
                                 <td className="px-4 py-4 whitespace-nowrap">
-                                    <Button type="button" variant="ghost" size="sm" onClick={() => handleRemoveFromCart(lot.id)} className="text-red-600 hover:text-red-800">
+                                    <Button type="button" variant="ghost" size="sm" onClick={() => handleRemoveFromCart(lotKey)} className="text-red-600 hover:text-red-800">
                                         <Trash2 className="w-4 h-4"/>
                                     </Button>
                                 </td>
                             </tr>
-                        ))}
+                          )
+                        })}
                     </tbody>
                 </table>
             </div>
