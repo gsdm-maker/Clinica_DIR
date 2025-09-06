@@ -1,0 +1,39 @@
+DROP FUNCTION IF EXISTS segregate_stock(uuid, integer, text, text, uuid);
+
+CREATE OR REPLACE FUNCTION segregate_stock(
+    p_producto_id uuid,
+    p_cantidad_a_mover integer,
+    p_condicion_origen text,
+    p_condicion_destino text,
+    p_usuario_id uuid,
+    p_motivo text -- Parámetro añadido para la observación
+)
+RETURNS void AS $$
+DECLARE
+    v_stock_disponible integer;
+BEGIN
+    -- Validar que el motivo no esté vacío si se mueve de Bueno a otra condición
+    IF p_condicion_origen = 'Bueno' AND p_condicion_destino != 'Bueno' AND (p_motivo IS NULL OR TRIM(p_motivo) = '') THEN
+        RAISE EXCEPTION 'Se requiere una observación para mover stock desde la condición Bueno.';
+    END IF;
+
+    -- Check current stock for the given condition
+    SELECT COALESCE(SUM(CASE WHEN tipo_movimiento = 'entrada' THEN cantidad ELSE -cantidad END), 0)
+    INTO v_stock_disponible
+    FROM movimientos
+    WHERE producto_id = p_producto_id AND LOWER(condicion) = LOWER(p_condicion_origen);
+
+    -- Verify if there is enough stock to move
+    IF v_stock_disponible < p_cantidad_a_mover THEN
+        RAISE EXCEPTION 'No hay suficiente stock en la condición % para mover. Stock disponible: %', p_condicion_origen, v_stock_disponible;
+    END IF;
+
+    -- Create a movement to "remove" stock from the source condition
+    INSERT INTO movimientos (producto_id, tipo_movimiento, cantidad, creado_en, condicion, usuario_id, motivo)
+    VALUES (p_producto_id, 'salida', p_cantidad_a_mover, NOW(), p_condicion_origen, p_usuario_id, p_motivo);
+
+    -- Create a movement to "add" stock to the destination condition
+    INSERT INTO movimientos (producto_id, tipo_movimiento, cantidad, creado_en, condicion, usuario_id, motivo)
+    VALUES (p_producto_id, 'entrada', p_cantidad_a_mover, NOW(), p_condicion_destino, p_usuario_id, p_motivo);
+END;
+$$ LANGUAGE plpgsql;
