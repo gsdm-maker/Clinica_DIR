@@ -17,6 +17,7 @@ export default function PatientMedications() {
   const [deliveryMonth, setDeliveryMonth] = useState('');
   const [medications, setMedications] = useState([{ product: '', quantity: '' }]);
   const [deliveries, setDeliveries] = useState<Entrega[]>([]); // State to store fetched deliveries
+  const [isPatientNameEditable, setIsPatientNameEditable] = useState(true); // New state
 
   const lookupPatient = async (searchRut: string) => {
     const { data, error } = await supabase
@@ -33,8 +34,10 @@ export default function PatientMedications() {
 
     if (data) {
       setPatientName(data.nombre);
+      setIsPatientNameEditable(false); // Patient name was found, make it read-only
     } else {
       setPatientName('');
+      setIsPatientNameEditable(true); // No patient found, allow editing
     }
   };
 
@@ -137,6 +140,21 @@ export default function PatientMedications() {
       .select('id')
       .single();
 
+    console.log('Attempting to insert mes_entrega with value:', formattedDeliveryMonth);
+
+    const { data: newDelivery, error: deliveryError } = await supabase
+      .from('entregas')
+      .insert([
+        {
+          paciente_id: patientId,
+          mes_entrega: formattedDeliveryMonth, // Use the formatted date string
+          indicaciones_medicas: medicalIndications,
+          usuario_id: user.id,
+        },
+      ])
+      .select('id')
+      .single();
+
     if (deliveryError) {
       console.error('Error creating new delivery:', deliveryError);
       alert('Error al registrar la entrega.');
@@ -221,7 +239,7 @@ export default function PatientMedications() {
               onChange={(e) => setPatientName(e.target.value)}
               placeholder="Nombre del paciente"
               className="w-full bg-gray-100"
-              readOnly={patientName !== ''} // Make read-only if name is auto-filled
+              readOnly={!isPatientNameEditable} // Make read-only based on editable state
             />
           </div>
 
