@@ -17,7 +17,6 @@ import toast from 'react-hot-toast';
 type InventoryProduct = Product & {
   maestro_productos: MasterProduct;
   proveedores: Provider;
-  stock_por_condicion: { [key: string]: number } | null;
 };
 
 export function Inventory() {
@@ -110,8 +109,8 @@ export function Inventory() {
       filtered = filtered.filter(p => p.maestro_productos?.categoria === categoryFilter);
     }
     if (conditionFilter) {
-      // Safely filter by condition, checking if stock_por_condicion exists
-      filtered = filtered.filter(p => p.stock_por_condicion && (p.stock_por_condicion[conditionFilter] || 0) > 0);
+      // Filter directly by product.condicion
+      filtered = filtered.filter(p => p.condicion === conditionFilter);
     }
     setFilteredProducts(filtered);
   };
@@ -155,18 +154,19 @@ export function Inventory() {
         }
         const upperCaseLote = formData.numero_lote.toUpperCase();
 
-        // Check for duplicate lot number
-        const { data: existingLote, error: loteError } = await supabase
+        // Check for duplicate lot number and condition
+        const { data: existingProductWithCondition, error: productCheckError } = await supabase
           .from('productos')
           .select('id')
           .eq('numero_lote', upperCaseLote)
+          .eq('condicion', formData.condicion) // Add condition check
           .single();
 
-        if (loteError && loteError.code !== 'PGRST116') { // Ignore 'No rows found'
-          throw new Error(`Error al verificar el lote: ${loteError.message}`);
+        if (productCheckError && productCheckError.code !== 'PGRST116') { // Ignore 'No rows found'
+          throw new Error(`Error al verificar el producto: ${productCheckError.message}`);
         }
-        if (existingLote) {
-          throw new Error(`El número de lote "${upperCaseLote}" ya existe. Use un número de lote único.`);
+        if (existingProductWithCondition) {
+          throw new Error(`Ya existe un producto con el número de lote "${upperCaseLote}" y condición "${formData.condicion}".`);
         }
         
         // Use the uppercase lot number for the new product
@@ -383,13 +383,11 @@ export function Inventory() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-wrap gap-1">
-                        {/* CORRECTED: Safely access stock_por_condicion */}
-                        {product.stock_por_condicion && Object.entries(product.stock_por_condicion).map(([condicion, stock]) =>
-                          stock > 0 && (
-                            <Badge key={condicion} variant={getConditionVariant(condicion)} size="sm">
-                              {condicion}: {stock}
-                            </Badge>
-                          )
+                        {/* Display product.condicion and product.stock_actual directly */}
+                        {product.stock_actual > 0 && (
+                          <Badge key={product.condicion} variant={getConditionVariant(product.condicion)} size="sm">
+                            {product.condicion}: {product.stock_actual}
+                          </Badge>
                         )}
                       </div>
                     </td>
@@ -467,7 +465,7 @@ export function Inventory() {
             onChange={(e) => setSegregateData(d => ({ ...d, cantidad: Number(e.target.value) }))}
             min="1"
             // CORRECTED: Safely access stock for the max attribute
-            max={selectedProduct?.stock_por_condicion?.[segregateData.condicion_origen] || selectedProduct?.stock_por_condicion?.[segregateData.condicion_origen.toLowerCase()] || 1}
+            max={selectedProduct?.stock_actual || 1}
           />
           <div className="flex justify-end space-x-3 pt-4">
             <Button type="button" variant="secondary" onClick={() => setShowSegregateModal(false)}>Cancelar</Button>

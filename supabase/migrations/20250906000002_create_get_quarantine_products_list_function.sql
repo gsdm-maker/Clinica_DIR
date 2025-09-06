@@ -30,7 +30,7 @@ BEGIN
             m.producto_id
     ) aspp ON p.id = aspp.producto_id
     WHERE
-        p.condicion = 'cuarentena' AND COALESCE(aspp.total_stock_for_product, 0) > 0
+        p.condicion = 'Cuarentena' AND COALESCE(aspp.total_stock_for_product, 0) > 0
     ORDER BY
         mp.nombre, p.numero_lote;
 END;

@@ -2,7 +2,8 @@
 CREATE OR REPLACE FUNCTION get_dashboard_stats()
 RETURNS json
 LANGUAGE plpgsql
-AS $$
+SECURITY DEFINER
+AS $
 DECLARE
   -- Declarar variables para almacenar los resultados
   total_products_count integer;
@@ -24,8 +25,10 @@ BEGIN
   -- 3. Contar productos vencidos
   SELECT count(*) INTO expired_products_count FROM public.productos WHERE fecha_vencimiento < now();
 
-  -- 4. Contar productos en cuarentena
-  SELECT count(*) INTO quarantine_products_count FROM public.productos WHERE condicion = 'cuarentena';
+  -- 4. Contar productos en cuarentena (basado en stock real en productos)
+  SELECT COALESCE(SUM(stock_actual), 0) INTO quarantine_products_count
+  FROM public.productos
+  WHERE condicion = 'Cuarentena';
 
   -- 5. Obtener los 5 movimientos más recientes (CORREGIDO)
   SELECT json_agg(row_to_json(t))
@@ -35,7 +38,7 @@ BEGIN
       m.id,
       m.tipo_movimiento, -- Corregido de m.tipo
       m.cantidad,
-      m.creado_en,
+      m.creado_en as fecha,
       mp.nombre as producto_nombre, -- Corregido de p.descripcion y se usa el join a maestro_productos
       u.email as usuario_email -- Usar email de la tabla auth.users
     FROM public.movimientos m
