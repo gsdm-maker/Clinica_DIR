@@ -13,10 +13,13 @@ import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import toast from 'react-hot-toast';
 
-// Define a more specific type for the inventory view
-type InventoryProduct = Product & {
+// Define a more specific type for the inventory view, matching the RPC function output
+type InventoryProduct = Omit<Product, 'stock_actual'> & {
+  stock_actual: number;
+  total_stock_lote: number;
   maestro_productos: MasterProduct;
-  proveedores: Provider;
+  proveedores?: Provider;
+  condicion: string; // Ensure condition is always present
 };
 
 export function Inventory() {
@@ -74,15 +77,14 @@ export function Inventory() {
   const fetchProducts = async () => {
     setLoading(true);
     try {
-      // The RPC call now returns a comprehensive view of each product lot
-      const { data, error } = await supabase.rpc<InventoryProduct>('get_inventory_stock');
+      const { data, error } = await supabase.rpc('get_inventory_stock');
 
       if (error) {
         console.error('Error fetching inventory:', error);
         throw error;
       }
       
-      setProducts(data || []);
+      setProducts((data as InventoryProduct[]) || []);
     } catch (error: any) {
       toast.error('Error al cargar el inventario. Revise la consola para más detalles.');
     } finally {
@@ -109,7 +111,6 @@ export function Inventory() {
       filtered = filtered.filter(p => p.maestro_productos?.categoria === categoryFilter);
     }
     if (conditionFilter) {
-      // Filter directly by product.condicion
       filtered = filtered.filter(p => p.condicion === conditionFilter);
     }
     setFilteredProducts(filtered);
@@ -147,29 +148,25 @@ export function Inventory() {
     try {
       const isCreatingNew = isEditing && !selectedProduct;
 
-      // For new products, validate and transform the lot number
       if (isCreatingNew) {
         if (!formData.numero_lote) {
           throw new Error('El campo "N° Lote" es obligatorio.');
         }
         const upperCaseLote = formData.numero_lote.toUpperCase();
 
-        // Check for duplicate lot number and condition
-        const { data: existingProductWithCondition, error: productCheckError } = await supabase
+        const { data: existingProduct, error: productCheckError } = await supabase
           .from('productos')
           .select('id')
           .eq('numero_lote', upperCaseLote)
-          .eq('condicion', formData.condicion) // Add condition check
           .single();
 
-        if (productCheckError && productCheckError.code !== 'PGRST116') { // Ignore 'No rows found'
+        if (productCheckError && productCheckError.code !== 'PGRST116') {
           throw new Error(`Error al verificar el producto: ${productCheckError.message}`);
         }
-        if (existingProductWithCondition) {
-          throw new Error(`Ya existe un producto con el número de lote "${upperCaseLote}" y condición "${formData.condicion}".`);
+        if (existingProduct) {
+          throw new Error(`Ya existe un producto con el número de lote "${upperCaseLote}". No se puede crear un nuevo producto con el mismo lote desde esta interfaz.`);
         }
         
-        // Use the uppercase lot number for the new product
         formData.numero_lote = upperCaseLote;
       }
 
@@ -181,16 +178,15 @@ export function Inventory() {
       };
       
       if (!isCreatingNew) {
-          delete productData.fecha_ingreso; // Don't update ingress date when editing
+          delete productData.fecha_ingreso;
       }
 
       if (isEditing && selectedProduct) {
-        // Logic for updating
-        const { error } = await supabase.from('productos').update(productData).eq('id', selectedProduct.id);
-        if (error) throw error;
-        toast.success('Producto actualizado.');
+        toast.error('La edición de productos existentes está deshabilitada en esta versión.');
+        // const { error } = await supabase.from('productos').update(productData).eq('id', selectedProduct.id);
+        // if (error) throw error;
+        // toast.success('Producto actualizado.');
       } else {
-        // Logic for creating a new product
         const { data: newProduct, error: insertError } = await supabase
           .from('productos')
           .insert([productData])
@@ -201,7 +197,6 @@ export function Inventory() {
           throw insertError || new Error('No se pudo crear el producto.');
         }
 
-        // Add the initial movement record
         if (user && productData.stock_actual > 0) {
           const { error: movementError } = await supabase.from('movimientos').insert([{
             producto_id: newProduct.id,
@@ -247,7 +242,7 @@ export function Inventory() {
       }
       toast.success('Stock segregado correctamente.');
       setShowSegregateModal(false);
-      fetchProducts(); // Refresh data
+      fetchProducts();
     } catch (error: any) {
       toast.error(error.message || 'Error al segregar el stock.');
     } finally {
@@ -256,7 +251,7 @@ export function Inventory() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!canManageStock || !confirm('¿Seguro que quieres eliminar este producto?')) return;
+    if (!canManageStock || !confirm('¿Seguro que quieres eliminar este producto? Esto eliminará todo el lote y sus movimientos.')) return;
 
     try {
       const { error } = await supabase.from('productos').delete().eq('id', id);
@@ -278,33 +273,31 @@ export function Inventory() {
         stock_actual: product.stock_actual || 0,
         numero_lote: product.numero_lote || '',
         fecha_vencimiento: product.fecha_vencimiento ? format(new Date(product.fecha_vencimiento), 'yyyy-MM-dd') : '',
-        condicion: product.condicion || 'bueno',
+        condicion: product.condicion || 'Bueno',
         observaciones: product.observaciones || '',
       });
     } else {
       setSelectedProduct(null);
-      setFormData({ maestro_producto_id: '', proveedor_id: '', stock_actual: 0, numero_lote: '', fecha_vencimiento: '', condicion: 'bueno', observaciones: '' });
+      setFormData({ maestro_producto_id: '', proveedor_id: '', stock_actual: 0, numero_lote: '', fecha_vencimiento: '', condicion: 'Bueno', observaciones: '' });
     }
     setShowModal(true);
   };
 
-  // CORRECTED: Use product.id for segregation
   const openSegregateModal = (product: InventoryProduct) => {
     setSelectedProduct(product);
     setSegregateData({
-      producto_id: product.id, // This is the crucial fix
+      producto_id: product.id,
       cantidad: 1,
-      condicion_origen: 'Bueno',
+      condicion_origen: product.condicion,
       condicion_destino: 'Dañado'
     });
     setShowSegregateModal(true);
   };
 
-  // CORRECTED: Add safe checks for stock and critical stock
   const getStockStatus = (product: InventoryProduct) => {
-    const stock = product.stock_actual || 0;
-    if (stock === 0) return { variant: 'danger' as const, label: 'Sin Stock' };
-    if (product.maestro_productos?.stock_critico && stock <= product.maestro_productos.stock_critico) {
+    const totalStock = product.total_stock_lote || 0;
+    if (totalStock === 0) return { variant: 'danger' as const, label: 'Sin Stock' };
+    if (product.maestro_productos?.stock_critico && totalStock <= product.maestro_productos.stock_critico) {
       return { variant: 'warning' as const, label: 'Stock Crítico' };
     }
     return { variant: 'success' as const, label: 'Stock Normal' };
@@ -358,8 +351,8 @@ export function Inventory() {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Producto / Lote</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Categoría</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock Total</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock por Condición</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock Lote</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Condición / Stock</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Proveedor</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha Ingreso</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha Vencimiento</th>
@@ -370,26 +363,20 @@ export function Inventory() {
               {filteredProducts.map((product) => {
                 const stockStatus = getStockStatus(product);
                 return (
-                  // CORRECTED: Use product.id for the key
-                  <tr key={product.id} className="hover:bg-gray-50">
+                  <tr key={`${product.id}-${product.condicion}`} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
                       <div className="text-sm font-medium text-gray-900">{product.maestro_productos?.nombre}</div>
                       <div className="text-sm text-gray-500">Lote: {product.numero_lote || 'N/A'}</div>
                     </td>
                     <td className="px-6 py-4"><span className="text-sm text-gray-900 capitalize">{product.maestro_productos?.categoria.replace('_', ' ')}</span></td>
                     <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-gray-900">{product.stock_actual || 0} / {product.maestro_productos?.stock_critico}</div>
+                      <div className="text-sm font-medium text-gray-900">{product.total_stock_lote || 0} / {product.maestro_productos?.stock_critico}</div>
                       <Badge variant={stockStatus.variant} size="sm">{stockStatus.label}</Badge>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex flex-wrap gap-1">
-                        {/* Display product.condicion and product.stock_actual directly */}
-                        {product.stock_actual > 0 && (
-                          <Badge key={product.condicion} variant={getConditionVariant(product.condicion)} size="sm">
-                            {product.condicion}: {product.stock_actual}
-                          </Badge>
-                        )}
-                      </div>
+                       <Badge variant={getConditionVariant(product.condicion)} size="sm">
+                          {product.condicion}: {product.stock_actual}
+                        </Badge>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">{product.proveedores?.nombre || 'N/A'}</td>
                     <td className="px-6 py-4 text-sm text-gray-500">
@@ -422,9 +409,9 @@ export function Inventory() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Select label="Producto Maestro *" options={masterProductsList.map(mp => ({ value: mp.id, label: mp.nombre }))} value={formData.maestro_producto_id} onChange={(e) => setFormData(p => ({ ...p, maestro_producto_id: e.target.value }))} required disabled={!isEditing} />
             <Select label="Proveedor *" options={providersList.map(p => ({ value: p.id, label: p.nombre }))} value={formData.proveedor_id} onChange={(e) => setFormData(p => ({ ...p, proveedor_id: e.target.value }))} required disabled={!isEditing} />
-            <Input label="Stock Actual *" type="number" value={formData.stock_actual} onChange={(e) => setFormData({ ...formData, stock_actual: Number(e.target.value) })} required disabled={!isEditing} />
+            <Input label="Stock Actual *" type="number" value={formData.stock_actual} onChange={(e) => setFormData({ ...formData, stock_actual: Number(e.target.value) })} required disabled={!isEditing || (isEditing && !!selectedProduct)} />
             <Select label="Condición *" options={conditions.map(c => ({ value: c.value, label: c.label }))} value={formData.condicion} onChange={(e) => setFormData(p => ({ ...p, condicion: e.target.value }))} required disabled={!isEditing} />
-                        <Input label="N° Lote *" value={formData.numero_lote} onChange={(e) => setFormData(p => ({ ...p, numero_lote: e.target.value }))} required disabled={isEditing && !!selectedProduct} />
+            <Input label="N° Lote *" value={formData.numero_lote} onChange={(e) => setFormData(p => ({ ...p, numero_lote: e.target.value }))} required disabled={isEditing && !!selectedProduct} />
             <Input label="Fecha de Vencimiento *" type="date" value={formData.fecha_vencimiento} onChange={(e) => setFormData(p => ({ ...p, fecha_vencimiento: e.target.value }))} required disabled={!isEditing} />
           </div>
           <div>
@@ -450,10 +437,11 @@ export function Inventory() {
               options={conditions.map(c => ({ value: c.value, label: c.label }))}
               value={segregateData.condicion_origen}
               onChange={(e) => setSegregateData(d => ({ ...d, condicion_origen: e.target.value }))}
+              disabled
             />
             <Select
               label="Hacia"
-              options={conditions.map(c => ({ value: c.value, label: c.label }))}
+              options={conditions.filter(c => c.value !== segregateData.condicion_origen).map(c => ({ value: c.value, label: c.label }))}
               value={segregateData.condicion_destino}
               onChange={(e) => setSegregateData(d => ({ ...d, condicion_destino: e.target.value }))}
             />
@@ -464,7 +452,6 @@ export function Inventory() {
             value={segregateData.cantidad}
             onChange={(e) => setSegregateData(d => ({ ...d, cantidad: Number(e.target.value) }))}
             min="1"
-            // CORRECTED: Safely access stock for the max attribute
             max={selectedProduct?.stock_actual || 1}
           />
           <div className="flex justify-end space-x-3 pt-4">
