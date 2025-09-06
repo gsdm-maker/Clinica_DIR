@@ -183,9 +183,6 @@ export function Inventory() {
 
       if (isEditing && selectedProduct) {
         toast.error('La edición de productos existentes está deshabilitada en esta versión.');
-        // const { error } = await supabase.from('productos').update(productData).eq('id', selectedProduct.id);
-        // if (error) throw error;
-        // toast.success('Producto actualizado.');
       } else {
         const { data: newProduct, error: insertError } = await supabase
           .from('productos')
@@ -351,8 +348,8 @@ export function Inventory() {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Producto / Lote</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Categoría</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock Lote</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Condición / Stock</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Condición</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Proveedor</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha Ingreso</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha Vencimiento</th>
@@ -370,13 +367,19 @@ export function Inventory() {
                     </td>
                     <td className="px-6 py-4"><span className="text-sm text-gray-900 capitalize">{product.maestro_productos?.categoria.replace('_', ' ')}</span></td>
                     <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-gray-900">{product.total_stock_lote || 0} / {product.maestro_productos?.stock_critico}</div>
-                      <Badge variant={stockStatus.variant} size="sm">{stockStatus.label}</Badge>
+                      <Badge variant={getConditionVariant(product.condicion)} size="sm">
+                        {product.condicion}
+                      </Badge>
                     </td>
                     <td className="px-6 py-4">
-                       <Badge variant={getConditionVariant(product.condicion)} size="sm">
-                          {product.condicion}: {product.stock_actual}
-                        </Badge>
+                      {product.condicion === 'Bueno' ? (
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">{product.stock_actual} / {product.maestro_productos?.stock_critico}</div>
+                          <Badge variant={stockStatus.variant} size="sm">{stockStatus.label}</Badge>
+                        </div>
+                      ) : (
+                        <div className="text-sm font-medium text-gray-900">{product.stock_actual}</div>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">{product.proveedores?.nombre || 'N/A'}</td>
                     <td className="px-6 py-4 text-sm text-gray-500">
@@ -455,7 +458,7 @@ export function Inventory() {
             max={selectedProduct?.stock_actual || 1}
           />
           <div className="flex justify-end space-x-3 pt-4">
-            <Button type="button" variant="secondary" onClick={() => setShowSegregateModal(false)}>Cancelar</Button>
+            <Button type="button" variant="secondary" onClick={() => setShowModal(false)}>Cancelar</Button>
             <Button type="submit" isLoading={loading}>Segregar</Button>
           </div>
         </form>
