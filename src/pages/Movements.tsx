@@ -16,6 +16,7 @@ type Movement = {
   fecha: string;
   producto_nombre: string;
   numero_lote: string;
+  proveedor_nombre: string;
   tipo_movimiento: 'entrada' | 'salida';
   cantidad: number;
   condicion: string;
@@ -99,6 +100,7 @@ export function Movements() {
       'Fecha': format(new Date(mov.fecha), 'dd/MM/yyyy HH:mm:ss'),
       'Producto': mov.producto_nombre,
       'N° Lote': mov.numero_lote,
+      'Proveedor': mov.proveedor_nombre,
       'Tipo de Movimiento': mov.tipo_movimiento,
       'Cantidad': mov.cantidad,
       'Condición': mov.condicion,
@@ -158,9 +160,9 @@ export function Movements() {
           />
           {/* TODO: Añadir selector de usuarios múltiple */}
           <Input
-            label="Buscar por Producto o Lote"
+            label="Buscar por Producto, Lote o Proveedor"
             name="searchTerm"
-            placeholder="Nombre o N° Lote..."
+            placeholder="Nombre, N° Lote o Proveedor..."
             value={filters.searchTerm}
             onChange={handleFilterChange}
           />
@@ -175,6 +177,7 @@ export function Movements() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Producto</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">N° Lote</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Proveedor</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cantidad</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Condición</th>
@@ -184,15 +187,16 @@ export function Movements() {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
-                <tr><td colSpan={8} className="text-center py-10">Cargando...</td></tr>
+                <tr><td colSpan={9} className="text-center py-10">Cargando...</td></tr>
               ) : movements.length === 0 ? (
-                <tr><td colSpan={8} className="text-center py-10 text-gray-500">No se encontraron movimientos con los filtros seleccionados.</td></tr>
+                <tr><td colSpan={9} className="text-center py-10 text-gray-500">No se encontraron movimientos con los filtros seleccionados.</td></tr>
               ) : (
                 movements.map((mov, index) => (
                   <tr key={index}>
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{format(new Date(mov.fecha), 'dd/MM/yy HH:mm', { locale: es })}</td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{mov.producto_nombre}</td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{mov.numero_lote}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{mov.proveedor_nombre}</td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm">
                       <Badge variant={mov.tipo_movimiento === 'entrada' ? 'default' : 'secondary'}>{mov.tipo_movimiento}</Badge>
                     </td>
