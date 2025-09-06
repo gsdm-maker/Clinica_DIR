@@ -10,6 +10,7 @@ import Entries from './pages/Entries';
 import Exits from './pages/Exits';
 import { ProductMaster } from './pages/ProductMaster';
 import { Movements } from './pages/Movements';
+import PatientMedications from './pages/PatientMedications';
 
 function ProtectedRoute() {
   const { user } = useAuth();
@@ -51,6 +52,7 @@ function AppRoutes() {
         <Route path="/exits" element={<Exits />} />
         <Route path="/product-master" element={<ProductMaster />} />
         <Route path="/movements" element={<Movements />} />
+        <Route path="/patient-medications" element={<PatientMedications />} />
       </Route>
 
       {/* Redirección para cualquier otra ruta */}

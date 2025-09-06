@@ -76,4 +76,33 @@ export interface Provider {
   created_at: string;
 }
 
+export interface Paciente {
+  id: string;
+  rut: string;
+  nombre: string;
+  created_at: string;
+}
+
+export interface Entrega {
+  id: string;
+  paciente_id: string;
+  mes_entrega: string; // Or number, depending on how you store it (e.g., '09' for September or 9)
+  indicaciones_medicas?: string;
+  registrado_por_usuario_id: string;
+  created_at: string;
+  // Optional: to display patient name directly
+  pacientes?: {
+    nombre: string;
+    rut: string;
+  };
+}
+
+export interface EntregaItem {
+  id: string;
+  entrega_id: string;
+  producto_nombre: string; // Or product_id if you link to MasterProduct
+  cantidad: number;
+  created_at: string;
+}
+
 // ... (los otros tipos como Checklist, PatientMedication, etc. se mantienen igual)
