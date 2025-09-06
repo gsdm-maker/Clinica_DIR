@@ -80,7 +80,7 @@ export default function Exits() {
       setLoading(true);
       try {
         const { data, error } = await supabase.rpc('get_dispatch_lots', {
-          p_maestro_producto_id: selectedMasterProductId,
+          param_maestro_producto_id: selectedMasterProductId,
         });
         
         if (error) throw error;

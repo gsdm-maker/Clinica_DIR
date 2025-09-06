@@ -1,4 +1,8 @@
-CREATE OR REPLACE FUNCTION get_dispatch_lots(p_maestro_producto_id uuid)
+-- Drop the existing function first to allow parameter renaming
+DROP FUNCTION IF EXISTS get_dispatch_lots(uuid);
+
+-- Recreate the function with the corrected parameter name
+CREATE OR REPLACE FUNCTION get_dispatch_lots(param_maestro_producto_id uuid)
 RETURNS TABLE(
     producto_id uuid,
     numero_lote TEXT,
@@ -34,7 +38,7 @@ BEGIN
     JOIN
         public.maestro_productos mp ON p.maestro_producto_id = mp.id
     WHERE
-        p.maestro_producto_id = p_maestro_producto_id AND ms.stock > 0
+        p.maestro_producto_id = param_maestro_producto_id AND ms.stock > 0
     ORDER BY
         p.fecha_vencimiento ASC, p.numero_lote, ms.condicion;
 END;
