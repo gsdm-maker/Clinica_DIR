@@ -1,12 +1,12 @@
 -- Drop the existing function first to allow parameter renaming
 DROP FUNCTION IF EXISTS get_dispatch_lots(uuid);
 
--- Recreate the function with the corrected parameter name and type casting
+-- Recreate the function with the corrected parameter name and explicit type casting
 CREATE OR REPLACE FUNCTION get_dispatch_lots(param_maestro_producto_id uuid)
 RETURNS TABLE(
     producto_id uuid,
     numero_lote TEXT,
-    fecha_vencimiento TIMESTAMPTZ,
+    fecha_vencimiento DATE, -- CORREGIDO
     condicion_lote TEXT, -- Renamed to avoid conflicts
     stock_actual BIGINT,
     maestro_producto_nombre TEXT
@@ -25,12 +25,12 @@ BEGIN
             m.producto_id, m.condicion
     )
     SELECT
-        p.id as producto_id,
-        p.numero_lote,
-        p.fecha_vencimiento,
-        ms.condicion as condicion_lote, -- Renamed to avoid conflicts
-        ms.stock as stock_actual,
-        mp.nombre as maestro_producto_nombre
+        p.id::uuid,
+        p.numero_lote::text,
+        p.fecha_vencimiento, -- No longer needs cast to timestamptz
+        ms.condicion::text,
+        ms.stock::bigint,
+        mp.nombre::text
     FROM
         movements_summary ms
     JOIN

@@ -7,7 +7,7 @@ RETURNS TABLE(
     proveedor_id uuid,
     stock_actual BIGINT,
     numero_lote TEXT,
-    fecha_vencimiento TIMESTAMPTZ,
+    fecha_vencimiento DATE, -- CORREGIDO
     observaciones TEXT,
     creado_en TIMESTAMPTZ,
     bloqueado BOOLEAN,
@@ -25,7 +25,7 @@ BEGIN
             m.condicion,
             SUM(CASE WHEN m.tipo_movimiento = 'entrada' THEN m.cantidad ELSE -m.cantidad END) as stock_change
         FROM
-            public.movimientos m -- Explicitly qualify table with schema
+            public.movimientos m
         GROUP BY
             m.producto_id, m.condicion
     ),
@@ -66,12 +66,13 @@ BEGIN
         ) AS proveedores,
         COALESCE(aspp.stock_breakdown_for_product, '{}'::json) AS stock_por_condicion
     FROM
-        public.productos p -- Explicitly qualify table with schema
+        public.productos p
     LEFT JOIN
         aggregated_stock_per_product aspp ON p.id = aspp.producto_id
     JOIN
-        public.maestro_productos mp ON p.maestro_producto_id = mp.id -- Explicitly qualify table with schema
+        public.maestro_productos mp ON p.maestro_producto_id = mp.id
     LEFT JOIN
-        public.proveedores prv ON p.proveedor_id = prv.id; -- Explicitly qualify table with schema
+        public.proveedores prv ON p.proveedor_id = prv.id
+    WHERE COALESCE(aspp.total_stock_for_product, 0) > 0;
 END;
 $$ LANGUAGE plpgsql;
