@@ -127,7 +127,7 @@ export default function PatientMedications() {
           paciente_id: patientId,
           mes_entrega: deliveryMonth,
           indicaciones_medicas: medicalIndications,
-          registrado_por_usuario_id: user.id,
+          usuario_id: user.id,
         },
       ])
       .select('id')
@@ -327,8 +327,8 @@ export default function PatientMedications() {
                       {delivery.indicaciones_medicas || 'Sin indicaciones'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {/* You'll need to fetch the user's name based on registrado_por_usuario_id */}
-                      {delivery.registrado_por_usuario_id}
+                      {/* You'll need to fetch the user's name based on usuario_id */}
+                      {delivery.usuario_id}
                     </td>
                   </tr>
                 ))}
