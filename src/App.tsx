@@ -9,6 +9,7 @@ import { Inventory } from './pages/Inventory';
 import Entries from './pages/Entries';
 import Exits from './pages/Exits';
 import { ProductMaster } from './pages/ProductMaster';
+import { Movements } from './pages/Movements';
 
 function ProtectedRoute() {
   const { user } = useAuth();
@@ -49,6 +50,7 @@ function AppRoutes() {
         <Route path="/entries" element={<Entries />} />
         <Route path="/exits" element={<Exits />} />
         <Route path="/product-master" element={<ProductMaster />} />
+        <Route path="/movements" element={<Movements />} />
       </Route>
 
       {/* Redirección para cualquier otra ruta */}
