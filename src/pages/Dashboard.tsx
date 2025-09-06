@@ -5,6 +5,9 @@ import { CategoryChart } from '../components/dashboard/CategoryChart';
 import { DashboardStats } from '../types';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
+import { CriticalStockList } from '../components/dashboard/CriticalStockList';
+import { ExpiringProductsList } from '../components/dashboard/ExpiringProductsList';
+import { QuarantineProductsList } from '../components/dashboard/QuarantineProductsList';
 
 export function Dashboard() {
   const [stats, setStats] = useState<DashboardStats>({
@@ -58,6 +61,14 @@ export function Dashboard() {
       </div>
 
       <DashboardStatsComponent stats={stats} />
+
+      {/* New section for alert lists */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        <CriticalStockList />
+        <ExpiringProductsList daysThreshold={30} title="Productos a Vencer (30 días)" />
+        <ExpiringProductsList daysThreshold={90} title="Productos a Vencer (90 días)" />
+        <QuarantineProductsList />
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
         <RecentMovements movements={stats.recent_movements} />
