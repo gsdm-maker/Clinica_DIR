@@ -20,6 +20,7 @@ type InventoryProduct = Omit<Product, 'stock_actual'> & {
   maestro_productos: MasterProduct;
   proveedores?: Provider;
   condicion: string; // Ensure condition is always present
+  ultima_observacion?: string; // To show the latest movement reason
 };
 
 export function Inventory() {
@@ -50,7 +51,8 @@ export function Inventory() {
     producto_id: '',
     cantidad: 1,
     condicion_origen: 'Bueno',
-    condicion_destino: 'Dañado'
+    condicion_destino: 'Dañado',
+    motivo: '' // Add reason state
   });
 
   const [masterProductsList, setMasterProductsList] = useState<MasterProduct[]>([]);
@@ -232,6 +234,7 @@ export function Inventory() {
         p_condicion_origen: segregateData.condicion_origen,
         p_condicion_destino: segregateData.condicion_destino,
         p_usuario_id: user.id,
+        p_motivo: segregateData.motivo
       });
 
       if (error) {
@@ -287,15 +290,20 @@ export function Inventory() {
       producto_id: product.id,
       cantidad: 1,
       condicion_origen: product.condicion,
-      condicion_destino: 'Dañado'
+      condicion_destino: 'Dañado',
+      motivo: '' // Reset reason on open
     });
     setShowSegregateModal(true);
   };
 
   const getStockStatus = (product: InventoryProduct) => {
-    const totalStock = product.total_stock_lote || 0;
-    if (totalStock === 0) return { variant: 'danger' as const, label: 'Sin Stock' };
-    if (product.maestro_productos?.stock_critico && totalStock <= product.maestro_productos.stock_critico) {
+    const stock = product.stock_actual || 0;
+    const criticalStock = product.maestro_productos?.stock_critico;
+
+    if (criticalStock && stock <= criticalStock) {
+      if (stock === 0) {
+        return { variant: 'danger' as const, label: 'Sin Stock' };
+      }
       return { variant: 'warning' as const, label: 'Stock Crítico' };
     }
     return { variant: 'success' as const, label: 'Stock Normal' };
@@ -372,7 +380,7 @@ export function Inventory() {
                         {product.condicion}
                       </Badge>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4" title={product.ultima_observacion || 'Sin observaciones recientes'}>
                       {product.condicion === 'Bueno' ? (
                         <div>
                           <div className="text-sm font-medium text-gray-900">{product.stock_actual} / {product.maestro_productos?.stock_critico}</div>
@@ -458,8 +466,22 @@ export function Inventory() {
             min="1"
             max={selectedProduct?.stock_actual || 1}
           />
+          {segregateData.condicion_origen === 'Bueno' && (
+            <div>
+              <label htmlFor="segregate_reason" className="block text-sm font-medium text-gray-700 mb-1">Motivo u Observación (Requerido)</label>
+              <textarea
+                id="segregate_reason"
+                className="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                rows={3}
+                value={segregateData.motivo}
+                onChange={(e) => setSegregateData(d => ({ ...d, motivo: e.target.value }))}
+                placeholder="Ej: Caja rota, producto dañado, etc."
+                required
+              />
+            </div>
+          )}
           <div className="flex justify-end space-x-3 pt-4">
-            <Button type="button" variant="secondary" onClick={() => setShowModal(false)}>Cancelar</Button>
+            <Button type="button" variant="secondary" onClick={() => setShowSegregateModal(false)}>Cancelar</Button>
             <Button type="submit" isLoading={loading}>Segregar</Button>
           </div>
         </form>
