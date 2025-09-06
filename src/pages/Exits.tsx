@@ -18,13 +18,13 @@ type DispatchLot = {
   producto_id: string;
   numero_lote: string;
   fecha_vencimiento: string | null;
-  condicion: string;
+  condicion_lote: string; // Renombrado para evitar conflictos
   stock_actual: number;
   maestro_producto_nombre: string;
 };
 
 // Helper para generar una clave única para cada lote/condición
-const getLotKey = (lot: DispatchLot) => `${lot.producto_id}-${lot.condicion}`;
+const getLotKey = (lot: DispatchLot) => `${lot.producto_id}-${lot.condicion_lote}`;
 
 export default function Exits() {
   const { user } = useAuth();
@@ -136,7 +136,7 @@ export default function Exits() {
         const newQuantity = (existingCartItem ? existingCartItem.quantity : 0) + quantity;
         
         if (newQuantity > lotToAdd.stock_actual) {
-            toast.error(`No puedes añadir más de ${lotToAdd.stock_actual} unidades del lote ${lotToAdd.numero_lote} (${lotToAdd.condicion})`);
+            toast.error(`No puedes añadir más de ${lotToAdd.stock_actual} unidades del lote ${lotToAdd.numero_lote} (${lotToAdd.condicion_lote})`);
             return;
         }
 
@@ -176,7 +176,7 @@ export default function Exits() {
     const salidas = Array.from(shoppingCart.values()).map(item => ({
       producto_id: item.lot.producto_id,
       cantidad: item.quantity,
-      condicion: item.lot.condicion,
+      condicion: item.lot.condicion_lote, // Usar el campo renombrado
     }));
 
     try {
@@ -248,7 +248,7 @@ export default function Exits() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {availableLots.map((lot, index) => {
                   const lotKey = getLotKey(lot);
-                  const isFefoRecommended = index === 0 && lot.stock_actual > 0 && lot.condicion === 'Bueno';
+                  const isFefoRecommended = index === 0 && lot.stock_actual > 0 && lot.condicion_lote === 'Bueno';
                   const isDispatchable = lot.stock_actual > 0;
                   const rowClassName = clsx({
                     'bg-green-50': isFefoRecommended,
@@ -262,7 +262,7 @@ export default function Exits() {
                         {isFefoRecommended && <Badge variant="default" className="ml-2 bg-green-600 text-white">FEFO</Badge>}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm">
-                        <Badge variant={lot.condicion === 'Bueno' ? 'default' : 'destructive'}>{lot.condicion}</Badge>
+                        <Badge variant={lot.condicion_lote === 'Bueno' ? 'default' : 'destructive'}>{lot.condicion_lote}</Badge>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm">{lot.stock_actual}</td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm">
@@ -318,7 +318,7 @@ export default function Exits() {
                                 <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{lot.maestro_producto_nombre}</td>
                                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{lot.numero_lote}</td>
                                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">
-                                  <Badge variant={lot.condicion === 'Bueno' ? 'default' : 'destructive'}>{lot.condicion}</Badge>
+                                  <Badge variant={lot.condicion_lote === 'Bueno' ? 'default' : 'destructive'}>{lot.condicion_lote}</Badge>
                                 </td>
                                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{quantity}</td>
                                 <td className="px-4 py-4 whitespace-nowrap">

@@ -1,13 +1,13 @@
 -- Drop the existing function first to allow parameter renaming
 DROP FUNCTION IF EXISTS get_dispatch_lots(uuid);
 
--- Recreate the function with the corrected parameter name
+-- Recreate the function with the corrected parameter name and type casting
 CREATE OR REPLACE FUNCTION get_dispatch_lots(param_maestro_producto_id uuid)
 RETURNS TABLE(
     producto_id uuid,
     numero_lote TEXT,
     fecha_vencimiento TIMESTAMPTZ,
-    condicion TEXT,
+    condicion_lote TEXT, -- Renamed to avoid conflicts
     stock_actual BIGINT,
     maestro_producto_nombre TEXT
 ) AS $$
@@ -18,7 +18,7 @@ BEGIN
         SELECT
             m.producto_id,
             m.condicion,
-            SUM(CASE WHEN m.tipo_movimiento = 'entrada' THEN m.cantidad ELSE -m.cantidad END) as stock
+            SUM(CASE WHEN m.tipo_movimiento = 'entrada' THEN m.cantidad ELSE -m.cantidad END)::bigint as stock
         FROM
             public.movimientos m
         GROUP BY
@@ -28,7 +28,7 @@ BEGIN
         p.id as producto_id,
         p.numero_lote,
         p.fecha_vencimiento,
-        ms.condicion,
+        ms.condicion as condicion_lote, -- Renamed to avoid conflicts
         ms.stock as stock_actual,
         mp.nombre as maestro_producto_nombre
     FROM
