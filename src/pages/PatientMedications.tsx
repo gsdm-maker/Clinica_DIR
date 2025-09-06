@@ -120,12 +120,16 @@ export default function PatientMedications() {
     }
 
     // 2. Insert new delivery
+    // Construct a valid date string for mes_entrega
+    const currentYear = new Date().getFullYear();
+    const formattedDeliveryMonth = `${currentYear}-${deliveryMonth}-01`; // e.g., "2025-04-01"
+
     const { data: newDelivery, error: deliveryError } = await supabase
       .from('entregas')
       .insert([
         {
           paciente_id: patientId,
-          mes_entrega: deliveryMonth,
+          mes_entrega: formattedDeliveryMonth, // Use the formatted date string
           indicaciones_medicas: medicalIndications,
           usuario_id: user.id,
         },
