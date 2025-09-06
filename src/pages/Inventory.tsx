@@ -222,7 +222,7 @@ export function Inventory() {
 
   const handleSegregate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canManageStock || !segregateData.producto_id) return;
+    if (!canManageStock || !segregateData.producto_id || !user) return;
     setLoading(true);
 
     try {
@@ -231,6 +231,7 @@ export function Inventory() {
         p_cantidad_a_mover: segregateData.cantidad,
         p_condicion_origen: segregateData.condicion_origen,
         p_condicion_destino: segregateData.condicion_destino,
+        p_usuario_id: user.id,
       });
 
       if (error) {
