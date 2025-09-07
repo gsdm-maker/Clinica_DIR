@@ -12,7 +12,8 @@ import {
   FileText,
   Users,
   Settings,
-  LogOut
+  LogOut,
+  Archive // Added Archive for history
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { clsx } from 'clsx';
@@ -25,6 +26,7 @@ const navigation = [
   { name: 'Checklist Almacenamiento', href: '/checklist-storage', icon: CheckSquare, permission: 'checklists' },
   { name: 'Checklist Protocolo', href: '/checklist-protocol', icon: CheckSquare, permission: 'checklists' },
   { name: 'Medicamentos Pacientes', href: '/patient-medications', icon: Syringe, permission: 'patient_medications' },
+  { name: 'Historial de Entregas', href: '/delivery-history', icon: Archive, permission: 'patient_medications' }, // New Link
   { name: 'Historial Movimientos', href: '/movements', icon: History, permission: 'view_reports' },
   { name: 'Dispositivos Médicos', href: '/medical-devices', icon: Monitor, permission: 'manage_stock' },
   { name: 'Egresos', href: '/egress', icon: Minus, permission: 'exits' },
