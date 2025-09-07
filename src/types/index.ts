@@ -100,7 +100,7 @@ export interface Entrega {
 export interface EntregaItem {
   id: string;
   entrega_id: string;
-  producto_nombre: string; // Or product_id if you link to MasterProduct
+  producto_id: string;
   cantidad: number;
   created_at: string;
 }

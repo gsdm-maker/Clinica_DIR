@@ -151,22 +151,41 @@ export default function PatientMedications() {
     // 3. Insert delivery items
     const deliveryItemsToInsert = [];
     for (const med of medications) {
-      // Fetch product ID based on product name
-      const { data: productData, error: productLookupError } = await supabase
-        .from('productos')
+      // 1. Find the maestro_producto_id from maestro_productos table
+      const { data: masterProduct, error: masterProductError } = await supabase
+        .from('maestro_productos')
         .select('id')
         .eq('nombre', med.product)
         .single();
 
-      if (productLookupError || !productData) {
-        console.error('Error looking up product:', med.product, productLookupError);
-        alert(`Error: Producto "${med.product}" no encontrado. Asegúrate de que el producto exista.`);
-        return; // Stop submission if product not found
+      if (masterProductError || !masterProduct) {
+        console.error('Error looking up master product:', med.product, masterProductError);
+        alert(`Error: Producto "${med.product}" no encontrado en el catálogo maestro. Asegúrate de que el producto exista en el catálogo maestro.`);
+        return;
       }
+
+      const maestroProductoId = masterProduct.id;
+
+      // 2. Find a product (batch) ID from the productos table using the maestro_producto_id
+      // For simplicity, let's just pick one available product batch.
+      // In a real scenario, you might want to select based on stock, expiry, etc.
+      const { data: productBatch, error: productBatchError } = await supabase
+        .from('productos')
+        .select('id')
+        .eq('maestro_producto_id', maestroProductoId)
+        .limit(1);
+
+      if (productBatchError || !productBatch || productBatch.length === 0) {
+        console.error('Error looking up product batch:', med.product, productBatchError);
+        alert(`Error: No se encontró ningún lote disponible para el producto "${med.product}".`);
+        return;
+      }
+
+      const productBatchId = productBatch[0].id;
 
       deliveryItemsToInsert.push({
         entrega_id: newDelivery.id,
-        producto_id: productData.id, // Use the fetched product ID
+        producto_id: productBatchId, // Use the fetched product batch ID
         cantidad: parseInt(med.quantity),
       });
     }
