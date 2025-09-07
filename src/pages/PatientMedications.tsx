@@ -142,19 +142,6 @@ export default function PatientMedications() {
 
     console.log('Attempting to insert mes_entrega with value:', formattedDeliveryMonth);
 
-    const { data: newDelivery, error: deliveryError } = await supabase
-      .from('entregas')
-      .insert([
-        {
-          paciente_id: patientId,
-          mes_entrega: formattedDeliveryMonth, // Use the formatted date string
-          indicaciones_medicas: medicalIndications,
-          usuario_id: user.id,
-        },
-      ])
-      .select('id')
-      .single();
-
     if (deliveryError) {
       console.error('Error creating new delivery:', deliveryError);
       alert('Error al registrar la entrega.');
