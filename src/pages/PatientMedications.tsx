@@ -149,11 +149,27 @@ export default function PatientMedications() {
     }
 
     // 3. Insert delivery items
-    const deliveryItemsToInsert = medications.map((med) => ({
-      entrega_id: newDelivery.id,
-      producto_nombre: med.product,
-      cantidad: parseInt(med.quantity),
-    }));
+    const deliveryItemsToInsert = [];
+    for (const med of medications) {
+      // Fetch product ID based on product name
+      const { data: productData, error: productLookupError } = await supabase
+        .from('productos')
+        .select('id')
+        .eq('nombre', med.product)
+        .single();
+
+      if (productLookupError || !productData) {
+        console.error('Error looking up product:', med.product, productLookupError);
+        alert(`Error: Producto "${med.product}" no encontrado. Asegúrate de que el producto exista.`);
+        return; // Stop submission if product not found
+      }
+
+      deliveryItemsToInsert.push({
+        entrega_id: newDelivery.id,
+        producto_id: productData.id, // Use the fetched product ID
+        cantidad: parseInt(med.quantity),
+      });
+    }
 
     const { error: itemsError } = await supabase
       .from('entregas_items')
