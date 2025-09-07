@@ -11,7 +11,7 @@ import toast from 'react-hot-toast';
 
 export default function PatientMedications() {
   const { user } = useAuth();
-  const submissionLock = useRef(false); // useRef for synchronous lock
+  const submissionLock = useRef(false);
 
   // Form state
   const [rut, setRut] = useState('');
@@ -47,7 +47,9 @@ export default function PatientMedications() {
   }, [rut]);
 
   const fetchTodaysDeliveries = async () => {
-    const { data, error } = await supabase.rpc('get_todays_deliveries');
+    const { data, error } = await supabase.rpc('get_todays_deliveries', {
+      p_cache_buster: new Date().toISOString()
+    });
     if (error) {
       toast.error("Error al cargar las entregas de hoy.");
       console.error('Error fetching today\'s deliveries:', error);
@@ -83,8 +85,8 @@ export default function PatientMedications() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (submissionLock.current) return; // Synchronous check
-    submissionLock.current = true; // Lock immediately
+    if (submissionLock.current) return;
+    submissionLock.current = true;
     setIsSubmitting(true);
 
     try {
@@ -148,7 +150,7 @@ export default function PatientMedications() {
       toast.error(error.message);
       console.error('Submission failed:', error);
     } finally {
-      submissionLock.current = false; // Unlock
+      submissionLock.current = false;
       setIsSubmitting(false);
     }
   };
