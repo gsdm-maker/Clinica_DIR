@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
@@ -8,10 +8,10 @@ import { supabase } from '../lib/supabase';
 import { Paciente, Entrega } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
-import { format } from 'date-fns';
 
 export default function PatientMedications() {
   const { user } = useAuth();
+  const submissionLock = useRef(false); // useRef for synchronous lock
 
   // Form state
   const [rut, setRut] = useState('');
@@ -20,13 +20,12 @@ export default function PatientMedications() {
   const [deliveryMonth, setDeliveryMonth] = useState('');
   const [medications, setMedications] = useState([{ maestro_producto_id: '', quantity: '' }]);
   const [isPatientNameEditable, setIsPatientNameEditable] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false); // Submission lock state
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Data state
   const [todaysDeliveries, setTodaysDeliveries] = useState<Entrega[]>([]);
   const [masterProducts, setMasterProducts] = useState<{ id: string; nombre: string }[]>([]);
 
-  // Lookup patient for the form
   const lookupPatient = async (searchRut: string) => {
     const { data, error } = await supabase.from('pacientes').select('*').eq('rut', searchRut).single();
     if (error && error.code !== 'PGRST116') {
@@ -47,7 +46,6 @@ export default function PatientMedications() {
     if (rut.length > 0) lookupPatient(rut);
   }, [rut]);
 
-  // Fetch deliveries from today using the RPC function
   const fetchTodaysDeliveries = async () => {
     const { data, error } = await supabase.rpc('get_todays_deliveries');
     if (error) {
@@ -58,7 +56,6 @@ export default function PatientMedications() {
     }
   };
 
-  // Fetch initial data
   useEffect(() => {
     const fetchInitialData = async () => {
       const { data, error } = await supabase.from('maestro_productos').select('id, nombre').eq('categoria', 'medicamentos');
@@ -86,7 +83,8 @@ export default function PatientMedications() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSubmitting) return; // Prevent double submission
+    if (submissionLock.current) return; // Synchronous check
+    submissionLock.current = true; // Lock immediately
     setIsSubmitting(true);
 
     try {
@@ -106,7 +104,7 @@ export default function PatientMedications() {
       const { data: newDelivery, error: deliveryError } = await supabase
         .from('entregas')
         .insert([{ paciente_id: patientId, mes_entrega: `${new Date().getFullYear()}-${deliveryMonth}-01`, indicaciones_medicas: medicalIndications, usuario_id: user.id }])
-        .select('id, created_at, mes_entrega, indicaciones_medicas') // Select all needed data
+        .select('id, created_at, mes_entrega, indicaciones_medicas')
         .single();
 
       if (deliveryError) { throw new Error('Error al registrar la entrega.'); }
@@ -126,7 +124,6 @@ export default function PatientMedications() {
       const { error: itemsError } = await supabase.from('entregas_items').insert(deliveryItemsToInsert);
       if (itemsError) { throw new Error('Error al registrar los ítems de la entrega.'); }
 
-      // --- Local State Update ---
       const newDeliveryForState: Entrega = {
         ...newDelivery,
         usuario_id: user.id,
@@ -135,9 +132,7 @@ export default function PatientMedications() {
         usuario: { name: user.name || '' },
         entregas_items: deliveryItemsToInsert.map(item => ({
           cantidad: item.cantidad,
-          maestro_productos: {
-            nombre: masterProducts.find(p => p.id === item.maestro_producto_id)?.nombre || ''
-          }
+          maestro_productos: { nombre: masterProducts.find(p => p.id === item.maestro_producto_id)?.nombre || '' }
         }))
       };
       setTodaysDeliveries(prev => [newDeliveryForState, ...prev]);
@@ -153,7 +148,8 @@ export default function PatientMedications() {
       toast.error(error.message);
       console.error('Submission failed:', error);
     } finally {
-      setIsSubmitting(false); // Re-enable submission
+      submissionLock.current = false; // Unlock
+      setIsSubmitting(false);
     }
   };
 
