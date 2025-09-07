@@ -54,7 +54,7 @@ export default function PatientMedications() {
       const { data, error } = await supabase
         .from('maestro_productos')
         .select('id, nombre')
-        .eq('categoria', 'Medicamentos') // <-- Added this filter
+        .eq('categoria', 'medicamentos') // Corrected category value
         .order('nombre', { ascending: true });
 
       if (error) {
@@ -177,12 +177,12 @@ export default function PatientMedications() {
         return;
     }
 
-    // Check if these products still exist and are categorized as 'Medicamentos'
+    // Check if these products still exist and are categorized as 'medicamentos'
     const { data: existingProducts, error: validationError } = await supabase
       .from('maestro_productos')
       .select('id')
       .in('id', selectedProductIds)
-      .eq('categoria', 'Medicamentos');
+      .eq('categoria', 'medicamentos');
 
     if (validationError) {
       console.error('Error validating products:', validationError);
