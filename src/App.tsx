@@ -12,7 +12,8 @@ import { ProductMaster } from './pages/ProductMaster';
 import { Movements } from './pages/Movements';
 import PatientMedications from './pages/PatientMedications';
 import DeliveryHistory from './pages/DeliveryHistory';
-import ChecklistAlmacenamiento from './pages/ChecklistAlmacenamiento'; // Import new page
+import ChecklistAlmacenamiento from './pages/ChecklistAlmacenamiento';
+import ChecklistProtocolo from './pages/ChecklistProtocolo'; // Import new page
 
 function ProtectedRoute() {
   const { user } = useAuth();
@@ -56,7 +57,8 @@ function AppRoutes() {
         <Route path="/movements" element={<Movements />} />
         <Route path="/patient-medications" element={<PatientMedications />} />
         <Route path="/delivery-history" element={<DeliveryHistory />} />
-        <Route path="/checklist-storage" element={<ChecklistAlmacenamiento />} /> {/* Add new route */}
+        <Route path="/checklist-storage" element={<ChecklistAlmacenamiento />} />
+        <Route path="/checklist-protocol" element={<ChecklistProtocolo />} /> {/* Add new route */}
       </Route>
 
       {/* Redirección para cualquier otra ruta */}
