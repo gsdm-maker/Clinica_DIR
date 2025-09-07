@@ -86,21 +86,31 @@ export interface Paciente {
 export interface Entrega {
   id: string;
   paciente_id: string;
-  mes_entrega: string; // Or number, depending on how you store it (e.g., '09' for September or 9)
+  mes_entrega: string;
   indicaciones_medicas?: string;
-  registrado_por_usuario_id: string;
+  usuario_id: string; // Corregido
   created_at: string;
-  // Optional: to display patient name directly
   pacientes?: {
     nombre: string;
     rut: string;
   };
+  // Para mostrar el nombre del usuario en el historial
+  usuario?: {
+    name: string;
+  };
+  // Para mostrar los ítems entregados en el historial
+  entregas_items: {
+    cantidad: number;
+    maestro_productos: {
+      nombre: string;
+    };
+  }[];
 }
 
 export interface EntregaItem {
   id: string;
   entrega_id: string;
-  producto_id: string;
+  maestro_producto_id: string; // Cambiado de producto_id
   cantidad: number;
   created_at: string;
 }

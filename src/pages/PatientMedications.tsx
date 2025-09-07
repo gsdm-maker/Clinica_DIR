@@ -5,7 +5,7 @@ import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 import { Plus, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase'; // Import supabase client
-import { Paciente, Entrega, EntregaItem, MasterProduct } from '../types'; // Import new types
+import { Paciente, Entrega } from '../types'; // Simplified imports
 import { useAuth } from '../contexts/AuthContext'; // To get current user ID
 
 export default function PatientMedications() {
@@ -15,10 +15,10 @@ export default function PatientMedications() {
   const [patientName, setPatientName] = useState('');
   const [medicalIndications, setMedicalIndications] = useState('');
   const [deliveryMonth, setDeliveryMonth] = useState('');
-  const [medications, setMedications] = useState([{ maestro_producto_id: '', quantity: '' }]); // Changed to maestro_producto_id
-  const [deliveries, setDeliveries] = useState<Entrega[]>([]); // State to store fetched deliveries
-  const [isPatientNameEditable, setIsPatientNameEditable] = useState(true); // New state
-  const [masterProducts, setMasterProducts] = useState<MasterProduct[]>([]); // New state for master products
+  const [medications, setMedications] = useState([{ maestro_producto_id: '', quantity: '' }]);
+  const [deliveries, setDeliveries] = useState<Entrega[]>([]);
+  const [isPatientNameEditable, setIsPatientNameEditable] = useState(true);
+  const [masterProducts, setMasterProducts] = useState<{ id: string; nombre: string }[]>([]);
 
   const lookupPatient = async (searchRut: string) => {
     const { data, error } = await supabase
@@ -27,7 +27,7 @@ export default function PatientMedications() {
       .eq('rut', searchRut)
       .single();
 
-    if (error && error.code !== 'PGRST116') { // PGRST116 means no rows found
+    if (error && error.code !== 'PGRST116') {
       console.error('Error looking up patient:', error);
       setPatientName('');
       return;
@@ -35,10 +35,10 @@ export default function PatientMedications() {
 
     if (data) {
       setPatientName(data.nombre);
-      setIsPatientNameEditable(false); // Patient name was found, make it read-only
+      setIsPatientNameEditable(false);
     } else {
       setPatientName('');
-      setIsPatientNameEditable(true); // No patient found, allow editing
+      setIsPatientNameEditable(true);
     }
   };
 
@@ -48,14 +48,12 @@ export default function PatientMedications() {
     }
   }, [rut]);
 
-  // Fetch master products on component mount
   useEffect(() => {
     const fetchMasterProducts = async () => {
       const { data, error } = await supabase
         .from('maestro_productos')
         .select('id, nombre')
-        .eq('categoria', 'medicamentos') // Corrected category value
-        .order('nombre', { ascending: true });
+        .eq('categoria', 'medicamentos');
 
       if (error) {
         console.error('Error fetching master products:', error);
@@ -67,7 +65,7 @@ export default function PatientMedications() {
   }, []);
 
   const handleAddMedication = () => {
-    setMedications([...medications, { maestro_producto_id: '', quantity: '' }]); // Changed to maestro_producto_id
+    setMedications([...medications, { maestro_producto_id: '', quantity: '' }]);
   };
 
   const handleRemoveMedication = (index: number) => {
@@ -88,7 +86,7 @@ export default function PatientMedications() {
   const fetchDeliveries = async () => {
     const { data, error } = await supabase
       .from('entregas')
-      .select('*, pacientes(nombre, rut)') // Select all from entregas and patient name/rut from related pacientes table
+      .select('*, pacientes(nombre, rut), usuario:users(name), entregas_items(cantidad, maestro_productos(nombre))')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -110,19 +108,8 @@ export default function PatientMedications() {
       return;
     }
 
-    // 1. Check if patient exists, if not, create new patient
     let patientId: string;
-    const { data: existingPatient, error: patientLookupError } = await supabase
-      .from('pacientes')
-      .select('id')
-      .eq('rut', rut)
-      .single();
-
-    if (patientLookupError && patientLookupError.code !== 'PGRST116') {
-      console.error('Error checking existing patient:', patientLookupError);
-      alert('Error al verificar el paciente.');
-      return;
-    }
+    const { data: existingPatient } = await supabase.from('pacientes').select('id').eq('rut', rut).single();
 
     if (existingPatient) {
       patientId = existingPatient.id;
@@ -141,25 +128,14 @@ export default function PatientMedications() {
       patientId = newPatient.id;
     }
 
-    // 2. Insert new delivery
-    // Construct a valid date string for mes_entrega
     const currentYear = new Date().getFullYear();
-    const formattedDeliveryMonth = `${currentYear}-${deliveryMonth}-01`; // e.g., "2025-04-01"
+    const formattedDeliveryMonth = `${currentYear}-${deliveryMonth}-01`;
 
     const { data: newDelivery, error: deliveryError } = await supabase
       .from('entregas')
-      .insert([
-        {
-          paciente_id: patientId,
-          mes_entrega: formattedDeliveryMonth, // Use the formatted date string
-          indicaciones_medicas: medicalIndications,
-          usuario_id: user.id,
-        },
-      ])
+      .insert([{ paciente_id: patientId, mes_entrega: formattedDeliveryMonth, indicaciones_medicas: medicalIndications, usuario_id: user.id }])
       .select('id')
       .single();
-
-    console.log('Attempting to insert mes_entrega with value:', formattedDeliveryMonth);
 
     if (deliveryError) {
       console.error('Error creating new delivery:', deliveryError);
@@ -167,56 +143,35 @@ export default function PatientMedications() {
       return;
     }
 
-    // 3. Validate and prepare delivery items
-    const selectedProductIds = medications
-      .map(med => med.maestro_producto_id)
-      .filter(id => id); // Get all selected product IDs
+    const selectedProductIds = medications.map(med => med.maestro_producto_id).filter(id => id);
 
     if (selectedProductIds.length === 0) {
-        alert('Por favor, añada al menos un medicamento a la entrega.');
-        return;
+      alert('Por favor, añada al menos un medicamento a la entrega.');
+      return;
     }
 
-    // Check if these products still exist and are categorized as 'medicamentos'
     const { data: existingProducts, error: validationError } = await supabase
       .from('maestro_productos')
       .select('id')
       .in('id', selectedProductIds)
       .eq('categoria', 'medicamentos');
 
-    if (validationError) {
+    if (validationError || existingProducts.length !== selectedProductIds.length) {
       console.error('Error validating products:', validationError);
-      alert('Error al validar los productos seleccionados.');
+      alert('Error: Uno o más productos seleccionados ya no existen o han sido modificados. Por favor, refresque la página e intente de nuevo.');
       return;
     }
 
-    const existingProductIds = new Set(existingProducts.map(p => p.id));
-    const missingProductIds = selectedProductIds.filter(id => !existingProductIds.has(id));
-
-    if (missingProductIds.length > 0) {
-      alert(`Error: Uno o más productos seleccionados ya no existen o han sido modificados. Por favor, refresque la página e intente de nuevo.`);
-      return;
-    }
-
-    // If validation passes, proceed with creating the items
     const deliveryItemsToInsert = medications
-      .filter(med => med.maestro_producto_id && med.quantity) // Ensure item is complete
-      .map(med => ({
-        entrega_id: newDelivery.id,
-        maestro_producto_id: med.maestro_producto_id, // Directly use the ID from the select
-        cantidad: parseInt(med.quantity),
-      }));
+      .filter(med => med.maestro_producto_id && med.quantity)
+      .map(med => ({ entrega_id: newDelivery.id, maestro_producto_id: med.maestro_producto_id, cantidad: parseInt(med.quantity) }));
 
     if (deliveryItemsToInsert.length !== medications.length) {
       alert('Por favor, complete el producto y la cantidad para todos los medicamentos.');
-      // Note: We might need to delete the 'entrega' record we just created if the transaction fails here.
-      // For now, we'll keep it simple.
       return;
     }
 
-    const { error: itemsError } = await supabase
-      .from('entregas_items')
-      .insert(deliveryItemsToInsert);
+    const { error: itemsError } = await supabase.from('entregas_items').insert(deliveryItemsToInsert);
 
     if (itemsError) {
       console.error('Error inserting delivery items:', itemsError);
@@ -225,22 +180,17 @@ export default function PatientMedications() {
     }
 
     alert('Entrega registrada exitosamente!');
-    // Clear form and refetch deliveries
     setRut('');
     setPatientName('');
     setMedicalIndications('');
     setDeliveryMonth('');
-    setMedications([{ maestro_producto_id: '', quantity: '' }]); // Changed to maestro_producto_id
+    setMedications([{ maestro_producto_id: '', quantity: '' }]);
     fetchDeliveries();
   };
 
-  // Generate month options for Select component
   const months = Array.from({ length: 12 }, (_, i) => {
     const date = new Date(0, i);
-    return {
-      value: (i + 1).toString().padStart(2, '0'),
-      label: date.toLocaleString('es-ES', { month: 'long' }),
-    };
+    return { value: (i + 1).toString().padStart(2, '0'), label: date.toLocaleString('es-ES', { month: 'long' }) };
   });
 
   return (
@@ -255,50 +205,22 @@ export default function PatientMedications() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="deliveryMonth" className="block text-sm font-medium text-gray-700 mb-1">Mes de Entrega</label>
-            <Select
-              id="deliveryMonth"
-              value={deliveryMonth}
-              onChange={(e) => setDeliveryMonth(e.target.value)}
-              options={months}
-              placeholder="Seleccione el mes"
-            />
+            <Select id="deliveryMonth" value={deliveryMonth} onChange={(e) => setDeliveryMonth(e.target.value)} options={months} placeholder="Seleccione el mes" />
           </div>
 
           <div>
             <label htmlFor="rut" className="block text-sm font-medium text-gray-700 mb-1">RUT Paciente (sin guion)</label>
-            <Input
-              id="rut"
-              type="text"
-              value={rut}
-              onChange={(e) => setRut(e.target.value.replace(/[^0-9Kk]/g, ''))} // Allow numbers and K/k
-              placeholder="Ej: 123456789"
-              className="w-full"
-            />
+            <Input id="rut" type="text" value={rut} onChange={(e) => setRut(e.target.value.replace(/[^0-9Kk]/g, ''))} placeholder="Ej: 123456789" className="w-full" />
           </div>
 
           <div>
             <label htmlFor="patientName" className="block text-sm font-medium text-gray-700 mb-1">Nombre Paciente</label>
-            <Input
-              id="patientName"
-              type="text"
-              value={patientName}
-              onChange={(e) => setPatientName(e.target.value)}
-              placeholder="Nombre del paciente"
-              className="w-full bg-gray-100"
-              readOnly={!isPatientNameEditable} // Make read-only based on editable state
-            />
+            <Input id="patientName" type="text" value={patientName} onChange={(e) => setPatientName(e.target.value)} placeholder="Nombre del paciente" className="w-full bg-gray-100" readOnly={!isPatientNameEditable} />
           </div>
 
           <div>
             <label htmlFor="medicalIndications" className="block text-sm font-medium text-gray-700 mb-1">Indicaciones Médicas</label>
-            <textarea
-              id="medicalIndications"
-              value={medicalIndications}
-              onChange={(e) => setMedicalIndications(e.target.value)}
-              rows={4}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
-              placeholder="Ingrese las indicaciones médicas aquí..."
-            ></textarea>
+            <textarea id="medicalIndications" value={medicalIndications} onChange={(e) => setMedicalIndications(e.target.value)} rows={4} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2" placeholder="Ingrese las indicaciones médicas aquí..."></textarea>
           </div>
 
           <div className="space-y-3">
@@ -307,32 +229,14 @@ export default function PatientMedications() {
               <div key={index} className="flex items-end space-x-2">
                 <div className="flex-grow">
                   <label htmlFor={`product-${index}`} className="block text-sm font-medium text-gray-700 mb-1">Producto</label>
-                  <Select
-                    id={`product-${index}`}
-                    value={med.maestro_producto_id}
-                    onChange={(e) => handleMedicationChange(index, 'maestro_producto_id', e.target.value)}
-                    options={masterProducts.map(mp => ({ value: mp.id, label: mp.nombre }))}
-                    placeholder="Seleccione el medicamento"
-                  />
+                  <Select id={`product-${index}`} value={med.maestro_producto_id} onChange={(e) => handleMedicationChange(index, 'maestro_producto_id', e.target.value)} options={masterProducts.map(mp => ({ value: mp.id, label: mp.nombre }))} placeholder="Seleccione el medicamento" />
                 </div>
                 <div>
                   <label htmlFor={`quantity-${index}`} className="block text-sm font-medium text-gray-700 mb-1">Cantidad</label>
-                  <Input
-                    id={`quantity-${index}`}
-                    type="number"
-                    value={med.quantity}
-                    onChange={(e) => handleMedicationChange(index, 'quantity', e.target.value)}
-                    placeholder="Cantidad"
-                    className="w-24"
-                  />
+                  <Input id={`quantity-${index}`} type="number" value={med.quantity} onChange={(e) => handleMedicationChange(index, 'quantity', e.target.value)} placeholder="Cantidad" className="w-24" />
                 </div>
                 {medications.length > 1 && (
-                  <Button
-                    type="button"
-                    onClick={() => handleRemoveMedication(index)}
-                    variant="ghost"
-                    className="p-2"
-                  >
+                  <Button type="button" onClick={() => handleRemoveMedication(index)} variant="ghost" className="p-2">
                     <Trash2 className="h-5 w-5 text-red-500" />
                   </Button>
                 )}
@@ -356,48 +260,31 @@ export default function PatientMedications() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Fecha
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Paciente
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    RUT
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Mes Entrega
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Indicaciones
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Registrado Por
-                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paciente</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">RUT</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mes Entrega</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Medicamentos Entregados</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Indicaciones</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registrado Por</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {deliveries.map((delivery) => (
                   <tr key={delivery.id}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{new Date(delivery.created_at).toLocaleDateString()}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{delivery.pacientes?.nombre || 'N/A'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{delivery.pacientes?.rut || 'N/A'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{months.find(m => m.value === delivery.mes_entrega.substring(5, 7))?.label || delivery.mes_entrega}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {new Date(delivery.created_at).toLocaleDateString()}
+                      <ul className="list-disc list-inside">
+                        {delivery.entregas_items.map((item, index) => (
+                          <li key={index}>{`${item.cantidad} x ${item.maestro_productos.nombre}`}</li>
+                        ))}
+                      </ul>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {delivery.pacientes?.nombre || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {delivery.pacientes?.rut || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {months.find(m => m.value === delivery.mes_entrega)?.label || delivery.mes_entrega}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {delivery.indicaciones_medicas || 'Sin indicaciones'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {/* You'll need to fetch the user's name based on usuario_id */}
-                      {delivery.usuario_id}
-                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{delivery.indicaciones_medicas || 'Sin indicaciones'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{delivery.usuario?.name || 'N/A'}</td>
                   </tr>
                 ))}
               </tbody>
