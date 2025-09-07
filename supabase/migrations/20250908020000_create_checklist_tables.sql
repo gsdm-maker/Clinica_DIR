@@ -26,9 +26,15 @@ FOR INSERT
 TO authenticated
 WITH CHECK ((SELECT role FROM public.users WHERE id = auth.uid()) IN ('admin', 'bodega', 'enfermero'));
 
-CREATE POLICY "Allow authorized roles to update/delete auditorias_checklist"
+CREATE POLICY "Allow authorized roles to update auditorias_checklist"
 ON public.auditorias_checklist
-FOR (UPDATE, DELETE)
+FOR UPDATE
+TO authenticated
+USING ((SELECT role FROM public.users WHERE id = auth.uid()) IN ('admin', 'bodega'));
+
+CREATE POLICY "Allow authorized roles to delete auditorias_checklist"
+ON public.auditorias_checklist
+FOR DELETE
 TO authenticated
 USING ((SELECT role FROM public.users WHERE id = auth.uid()) IN ('admin', 'bodega'));
 
@@ -58,8 +64,14 @@ FOR INSERT
 TO authenticated
 WITH CHECK ((SELECT role FROM public.users WHERE id = auth.uid()) IN ('admin', 'bodega', 'enfermero'));
 
-CREATE POLICY "Allow authorized roles to update/delete auditoria_preguntas"
+CREATE POLICY "Allow authorized roles to update auditoria_preguntas"
 ON public.auditoria_preguntas
-FOR (UPDATE, DELETE)
+FOR UPDATE
+TO authenticated
+USING ((SELECT role FROM public.users WHERE id = auth.uid()) IN ('admin', 'bodega'));
+
+CREATE POLICY "Allow authorized roles to delete auditoria_preguntas"
+ON public.auditoria_preguntas
+FOR DELETE
 TO authenticated
 USING ((SELECT role FROM public.users WHERE id = auth.uid()) IN ('admin', 'bodega'));

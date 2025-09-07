@@ -27,6 +27,7 @@ const navigation = [
   { name: 'Checklist Protocolo', href: '/checklist-protocol', icon: CheckSquare, permission: 'checklists' },
   { name: 'Medicamentos Pacientes', href: '/patient-medications', icon: Syringe, permission: 'patient_medications' },
   { name: 'Historial de Entregas', href: '/delivery-history', icon: Archive, permission: 'patient_medications' }, // New Link
+  { name: 'Historial de Checklists', href: '/checklist-history', icon: History, permission: 'checklists' }, // New Link
   { name: 'Historial Movimientos', href: '/movements', icon: History, permission: 'view_reports' },
   { name: 'Dispositivos Médicos', href: '/medical-devices', icon: Monitor, permission: 'manage_stock' },
   { name: 'Egresos', href: '/egress', icon: Minus, permission: 'exits' },

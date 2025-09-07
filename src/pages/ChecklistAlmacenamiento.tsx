@@ -1,18 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react'; // Added useRef
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
+import { supabase } from '../lib/supabase'; // Import supabase
+import { useAuth } from '../contexts/AuthContext'; // Import useAuth
+import toast from 'react-hot-toast'; // Import toast
 
-// Usaremos elementos HTML básicos para Textarea, RadioGroup y Label
-// ya que los componentes de UI específicos no están disponibles o causaron problemas.
-
-import { 
-  ClipboardList, 
+import {
+  ClipboardList,
   AlertTriangle,
   CheckCircle
 } from 'lucide-react';
 
 export default function ChecklistAlmacenamiento() {
+  const { user } = useAuth(); // Get user from auth context
+  const submissionLock = useRef(false); // Submission lock
+  const [isSubmitting, setIsSubmitting] = useState(false); // UI state for submitting
+
   const [answers, setAnswers] = useState({});
   const [actionPlans, setActionPlans] = useState({});
 
@@ -35,12 +39,85 @@ export default function ChecklistAlmacenamiento() {
     setActionPlans(prev => ({ ...prev, [questionId]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => { // Made async
     e.preventDefault();
-    console.log('Respuestas:', answers);
-    console.log('Planes de Acción:', actionPlans);
-    // Aquí iría la lógica para guardar en la base de datos
-    alert('Checklist completado. Revisa la consola para ver los datos.');
+    if (submissionLock.current) return; // Prevent double submission
+    submissionLock.current = true;
+    setIsSubmitting(true);
+
+    try {
+      if (!user) {
+        toast.error('Debe iniciar sesión para completar el checklist.');
+        return;
+      }
+
+      // 1. Validate all questions are answered
+      if (Object.keys(answers).length !== questions.length) {
+        toast.error('Por favor, responde todas las preguntas antes de completar el checklist.');
+        return;
+      }
+
+      // 2. Prepare main audit record
+      const answeredCount = Object.keys(answers).length;
+      const totalQuestions = questions.length;
+      const percentageCompleted = Math.round((answeredCount / totalQuestions) * 100);
+      const findingsCount = Object.values(answers).filter(answer => answer === 'no').length;
+
+      const auditData = {
+        tipo_checklist: 'almacenamiento', // Fixed type
+        usuario_id: user.id,
+        porcentaje_completado: percentageCompleted,
+        total_hallazgos: findingsCount,
+        observaciones_generales: null, // No general observations field in UI yet
+      };
+
+      // 3. Insert main audit record
+      const { data: newAudit, error: auditError } = await supabase
+        .from('auditorias_checklist')
+        .insert([auditData])
+        .select('id')
+        .single();
+
+      if (auditError) {
+        console.error('Error inserting audit:', auditError);
+        toast.error('Error al guardar el checklist principal.');
+        return;
+      }
+
+      const auditId = newAudit.id;
+
+      // 4. Prepare questions data
+      const questionsToInsert = questions.map(q => ({
+        auditoria_id: auditId,
+        pregunta_id: q.id,
+        respuesta: answers[q.id],
+        plan_accion: answers[q.id] === 'no' ? (actionPlans[q.id] || null) : null,
+        evidencia_url: null, // No photo upload yet
+      }));
+
+      // 5. Insert questions data
+      const { error: questionsError } = await supabase
+        .from('auditoria_preguntas')
+        .insert(questionsToInsert);
+
+      if (questionsError) {
+        console.error('Error inserting questions:', questionsError);
+        toast.error('Error al guardar las respuestas del checklist.');
+        return;
+      }
+
+      toast.success('Checklist de Almacenamiento completado y guardado exitosamente!');
+      // Clear form
+      setAnswers({});
+      setActionPlans({});
+
+    } catch (error: any) {
+      console.error('Error completing checklist:', error);
+      toast.error(error.message || 'Ocurrió un error al completar el checklist.');
+    } finally {
+      submissionLock.current = false;
+      setIsSubmitting(false);
+    }
   };
 
   const answeredCount = Object.keys(answers).length;
@@ -50,19 +127,17 @@ export default function ChecklistAlmacenamiento() {
 
   return (
     <div className="p-6 space-y-6 bg-gray-50 min-h-full">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Checklist de Almacenamiento</h1>
-          <p className="text-gray-600">Verificación de las condiciones del almacén.</p>
-        </div>
-        <div className="flex gap-2">
-          <Badge variant="outline">Progreso: {percentageCompleted}%</Badge>
-          <Badge variant={findingsCount > 0 ? "destructive" : "secondary"}>Hallazgos: {findingsCount}</Badge>
-        </div>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Checklist de Almacenamiento</h1>
+        <p className="text-gray-600">Verificación de las condiciones del almacén.</p>
       </div>
 
       <Card className="bg-white p-6">
         <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="flex justify-between items-center mb-4">
+            <Badge variant="outline">Progreso: {percentageCompleted}%</Badge>
+            <Badge variant={findingsCount > 0 ? "destructive" : "secondary"}>Hallazgos: {findingsCount}</Badge>
+          </div>
           {questions.map((q, index) => (
             <div key={q.id} className="border-b pb-4 last:border-b-0 last:pb-0">
               <p className="font-medium text-gray-800 mb-2">{index + 1}. {q.text}</p>
@@ -110,9 +185,8 @@ export default function ChecklistAlmacenamiento() {
           ))}
 
           <div className="flex justify-end mt-6">
-            <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-              <CheckCircle className="w-4 h-4 mr-2" />
-              Completar Checklist
+            <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={isSubmitting}>
+              {isSubmitting ? 'Guardando...' : 'Completar Checklist'}
             </Button>
           </div>
         </form>
