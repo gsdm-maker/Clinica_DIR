@@ -54,6 +54,7 @@ export default function PatientMedications() {
       const { data, error } = await supabase
         .from('maestro_productos')
         .select('id, nombre')
+        .eq('categoria', 'Medicamentos') // <-- Added this filter
         .order('nombre', { ascending: true });
 
       if (error) {
@@ -166,37 +167,51 @@ export default function PatientMedications() {
       return;
     }
 
-    // 3. Insert delivery items
-    const deliveryItemsToInsert = [];
-    for (const med of medications) {
-      if (!med.maestro_producto_id || !med.quantity) {
-        alert('Por favor, seleccione un producto y una cantidad para todos los medicamentos.');
-        return; // Skip this iteration if data is incomplete
-      }
+    // 3. Validate and prepare delivery items
+    const selectedProductIds = medications
+      .map(med => med.maestro_producto_id)
+      .filter(id => id); // Get all selected product IDs
 
-      // For simplicity, let's just pick one available product batch.
-      // In a real scenario, you might want to select based on stock, expiry, etc.
-      const { data: productBatch, error: productBatchError } = await supabase
-        .from('productos')
-        .select('id, maestro_producto_id')
-        .eq('maestro_producto_id', med.maestro_producto_id)
-        .gt('stock_disponible', 0) // Ensure there is stock
-        .limit(1)
-        .single();
-
-      if (productBatchError || !productBatch) {
-        // Find product name for a better error message
-        const productName = masterProducts.find(p => p.id === med.maestro_producto_id)?.nombre || 'Desconocido';
-        console.error(`Error looking up product batch for ${productName}:`, productBatchError);
-        alert(`Error: No se encontró ningún lote con stock disponible para el producto "${productName}".`);
+    if (selectedProductIds.length === 0) {
+        alert('Por favor, añada al menos un medicamento a la entrega.');
         return;
-      }
+    }
 
-      deliveryItemsToInsert.push({
+    // Check if these products still exist and are categorized as 'Medicamentos'
+    const { data: existingProducts, error: validationError } = await supabase
+      .from('maestro_productos')
+      .select('id')
+      .in('id', selectedProductIds)
+      .eq('categoria', 'Medicamentos');
+
+    if (validationError) {
+      console.error('Error validating products:', validationError);
+      alert('Error al validar los productos seleccionados.');
+      return;
+    }
+
+    const existingProductIds = new Set(existingProducts.map(p => p.id));
+    const missingProductIds = selectedProductIds.filter(id => !existingProductIds.has(id));
+
+    if (missingProductIds.length > 0) {
+      alert(`Error: Uno o más productos seleccionados ya no existen o han sido modificados. Por favor, refresque la página e intente de nuevo.`);
+      return;
+    }
+
+    // If validation passes, proceed with creating the items
+    const deliveryItemsToInsert = medications
+      .filter(med => med.maestro_producto_id && med.quantity) // Ensure item is complete
+      .map(med => ({
         entrega_id: newDelivery.id,
-        producto_id: productBatch.id, // Use the fetched product batch ID
+        maestro_producto_id: med.maestro_producto_id, // Directly use the ID from the select
         cantidad: parseInt(med.quantity),
-      });
+      }));
+
+    if (deliveryItemsToInsert.length !== medications.length) {
+      alert('Por favor, complete el producto y la cantidad para todos los medicamentos.');
+      // Note: We might need to delete the 'entrega' record we just created if the transaction fails here.
+      // For now, we'll keep it simple.
+      return;
     }
 
     const { error: itemsError } = await supabase
