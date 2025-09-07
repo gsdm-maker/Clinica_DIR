@@ -32,6 +32,7 @@ export default function DeliveryHistory() {
   }, []);
 
   const fetchDeliveries = async () => {
+    console.log('Applying filters:', filters); // Debugging line
     let query = supabase.from('entregas').select('*, pacientes!inner(nombre, rut), usuario:users(name), entregas_items(cantidad, maestro_productos(nombre))');
     if (filters.fechaDesde) query = query.gte('created_at', filters.fechaDesde);
     if (filters.fechaHasta) query = query.lte('created_at', `${filters.fechaHasta} 23:59:59`);
@@ -116,7 +117,7 @@ export default function DeliveryHistory() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {deliveries.map((delivery) => (
                   <tr key={delivery.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{new Date(delivery.created_at).toLocaleDateString()}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{delivery.created_at.substring(8, 10)}-{delivery.created_at.substring(5, 7)}-{delivery.created_at.substring(0, 4)}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{delivery.pacientes?.nombre || 'N/A'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{delivery.pacientes?.rut || 'N/A'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{months.find(m => m.value === delivery.mes_entrega.substring(5, 7))?.label || delivery.mes_entrega}</td>

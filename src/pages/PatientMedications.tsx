@@ -54,7 +54,6 @@ export default function PatientMedications() {
       toast.error("Error al cargar las entregas de hoy.");
       console.error('Error fetching today\'s deliveries:', error);
     } else {
-      console.log('Data received from RPC:', data); // Log data to the console
       setTodaysDeliveries(data as Entrega[]);
     }
   };
@@ -230,7 +229,7 @@ export default function PatientMedications() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {todaysDeliveries.map((delivery) => (
                   <tr key={delivery.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{new Date(delivery.created_at).toLocaleDateString()}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{delivery.created_at.substring(8, 10)}-{delivery.created_at.substring(5, 7)}-{delivery.created_at.substring(0, 4)}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{delivery.pacientes?.nombre || 'N/A'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{delivery.pacientes?.rut || 'N/A'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{months.find(m => m.value === delivery.mes_entrega.substring(5, 7))?.label || delivery.mes_entrega}</td>
