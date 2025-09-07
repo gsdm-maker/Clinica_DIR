@@ -56,7 +56,7 @@ function AppRoutes() {
         <Route path="/movements" element={<Movements />} />
         <Route path="/patient-medications" element={<PatientMedications />} />
         <Route path="/delivery-history" element={<DeliveryHistory />} />
-        <Route path="/checklist-almacenamiento" element={<ChecklistAlmacenamiento />} /> {/* Add new route */}
+        <Route path="/checklist-storage" element={<ChecklistAlmacenamiento />} /> {/* Add new route */}
       </Route>
 
       {/* Redirección para cualquier otra ruta */}
