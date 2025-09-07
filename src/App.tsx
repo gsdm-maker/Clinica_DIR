@@ -11,7 +11,8 @@ import Exits from './pages/Exits';
 import { ProductMaster } from './pages/ProductMaster';
 import { Movements } from './pages/Movements';
 import PatientMedications from './pages/PatientMedications';
-import DeliveryHistory from './pages/DeliveryHistory'; // Import new page
+import DeliveryHistory from './pages/DeliveryHistory';
+import ChecklistAlmacenamiento from './pages/ChecklistAlmacenamiento'; // Import new page
 
 function ProtectedRoute() {
   const { user } = useAuth();
@@ -54,7 +55,8 @@ function AppRoutes() {
         <Route path="/product-master" element={<ProductMaster />} />
         <Route path="/movements" element={<Movements />} />
         <Route path="/patient-medications" element={<PatientMedications />} />
-        <Route path="/delivery-history" element={<DeliveryHistory />} /> {/* Add new route */}
+        <Route path="/delivery-history" element={<DeliveryHistory />} />
+        <Route path="/checklist-almacenamiento" element={<ChecklistAlmacenamiento />} /> {/* Add new route */}
       </Route>
 
       {/* Redirección para cualquier otra ruta */}
