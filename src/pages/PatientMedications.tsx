@@ -74,13 +74,9 @@ export default function PatientMedications() {
     setMedications(newMedications);
   };
 
-  const handleMedicationChange = (index: number, field: string, value: string) => {
+  const handleMedicationChange = (index: number, field: keyof typeof medications[0], value: string) => {
     const newMedications = medications.map((med, i) => {
       if (i === index) {
-        // If 'product' field is changed, it means maestro_producto_id is selected
-        if (field === 'product') {
-          return { ...med, maestro_producto_id: value };
-        }
         return { ...med, [field]: value };
       }
       return med;
@@ -173,41 +169,32 @@ export default function PatientMedications() {
     // 3. Insert delivery items
     const deliveryItemsToInsert = [];
     for (const med of medications) {
-      // 1. Find the maestro_producto_id from maestro_productos table
-      const { data: masterProduct, error: masterProductError } = await supabase
-        .from('maestro_productos')
-        .select('id')
-        .eq('nombre', med.product)
-        .single();
-
-      if (masterProductError || !masterProduct) {
-        console.error('Error looking up master product:', med.product, masterProductError);
-        alert(`Error: Producto "${med.product}" no encontrado en el catálogo maestro. Asegúrate de que el producto exista en el catálogo maestro.`);
-        return;
+      if (!med.maestro_producto_id || !med.quantity) {
+        alert('Por favor, seleccione un producto y una cantidad para todos los medicamentos.');
+        return; // Skip this iteration if data is incomplete
       }
 
-      const maestroProductoId = masterProduct.id;
-
-      // 2. Find a product (batch) ID from the productos table using the maestro_producto_id
       // For simplicity, let's just pick one available product batch.
       // In a real scenario, you might want to select based on stock, expiry, etc.
       const { data: productBatch, error: productBatchError } = await supabase
         .from('productos')
-        .select('id')
-        .eq('maestro_producto_id', maestroProductoId)
-        .limit(1);
+        .select('id, maestro_producto_id')
+        .eq('maestro_producto_id', med.maestro_producto_id)
+        .gt('stock_disponible', 0) // Ensure there is stock
+        .limit(1)
+        .single();
 
-      if (productBatchError || !productBatch || productBatch.length === 0) {
-        console.error('Error looking up product batch:', med.product, productBatchError);
-        alert(`Error: No se encontró ningún lote disponible para el producto "${med.product}".`);
+      if (productBatchError || !productBatch) {
+        // Find product name for a better error message
+        const productName = masterProducts.find(p => p.id === med.maestro_producto_id)?.nombre || 'Desconocido';
+        console.error(`Error looking up product batch for ${productName}:`, productBatchError);
+        alert(`Error: No se encontró ningún lote con stock disponible para el producto "${productName}".`);
         return;
       }
 
-      const productBatchId = productBatch[0].id;
-
       deliveryItemsToInsert.push({
         entrega_id: newDelivery.id,
-        producto_id: productBatchId, // Use the fetched product batch ID
+        producto_id: productBatch.id, // Use the fetched product batch ID
         cantidad: parseInt(med.quantity),
       });
     }
@@ -308,7 +295,7 @@ export default function PatientMedications() {
                   <Select
                     id={`product-${index}`}
                     value={med.maestro_producto_id}
-                    onChange={(e) => handleMedicationChange(index, 'product', e.target.value)}
+                    onChange={(e) => handleMedicationChange(index, 'maestro_producto_id', e.target.value)}
                     options={masterProducts.map(mp => ({ value: mp.id, label: mp.nombre }))}
                     placeholder="Seleccione el medicamento"
                   />
