@@ -54,6 +54,7 @@ export default function PatientMedications() {
       toast.error("Error al cargar las entregas de hoy.");
       console.error('Error fetching today\'s deliveries:', error);
     } else {
+      console.log('Data received from RPC:', data); // Log data to the console
       setTodaysDeliveries(data as Entrega[]);
     }
   };
