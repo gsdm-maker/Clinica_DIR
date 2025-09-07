@@ -5,7 +5,7 @@ import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 import { Plus, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase'; // Import supabase client
-import { Paciente, Entrega, EntregaItem } from '../types'; // Import new types
+import { Paciente, Entrega, EntregaItem, MasterProduct } from '../types'; // Import new types
 import { useAuth } from '../contexts/AuthContext'; // To get current user ID
 
 export default function PatientMedications() {
@@ -15,9 +15,10 @@ export default function PatientMedications() {
   const [patientName, setPatientName] = useState('');
   const [medicalIndications, setMedicalIndications] = useState('');
   const [deliveryMonth, setDeliveryMonth] = useState('');
-  const [medications, setMedications] = useState([{ product: '', quantity: '' }]);
+  const [medications, setMedications] = useState([{ maestro_producto_id: '', quantity: '' }]); // Changed to maestro_producto_id
   const [deliveries, setDeliveries] = useState<Entrega[]>([]); // State to store fetched deliveries
   const [isPatientNameEditable, setIsPatientNameEditable] = useState(true); // New state
+  const [masterProducts, setMasterProducts] = useState<MasterProduct[]>([]); // New state for master products
 
   const lookupPatient = async (searchRut: string) => {
     const { data, error } = await supabase
@@ -47,8 +48,25 @@ export default function PatientMedications() {
     }
   }, [rut]);
 
+  // Fetch master products on component mount
+  useEffect(() => {
+    const fetchMasterProducts = async () => {
+      const { data, error } = await supabase
+        .from('maestro_productos')
+        .select('id, nombre')
+        .order('nombre', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching master products:', error);
+        return;
+      }
+      setMasterProducts(data || []);
+    };
+    fetchMasterProducts();
+  }, []);
+
   const handleAddMedication = () => {
-    setMedications([...medications, { product: '', quantity: '' }]);
+    setMedications([...medications, { maestro_producto_id: '', quantity: '' }]); // Changed to maestro_producto_id
   };
 
   const handleRemoveMedication = (index: number) => {
@@ -59,6 +77,10 @@ export default function PatientMedications() {
   const handleMedicationChange = (index: number, field: string, value: string) => {
     const newMedications = medications.map((med, i) => {
       if (i === index) {
+        // If 'product' field is changed, it means maestro_producto_id is selected
+        if (field === 'product') {
+          return { ...med, maestro_producto_id: value };
+        }
         return { ...med, [field]: value };
       }
       return med;
@@ -206,7 +228,7 @@ export default function PatientMedications() {
     setPatientName('');
     setMedicalIndications('');
     setDeliveryMonth('');
-    setMedications([{ product: '', quantity: '' }]);
+    setMedications([{ maestro_producto_id: '', quantity: '' }]); // Changed to maestro_producto_id
     fetchDeliveries();
   };
 
@@ -283,12 +305,12 @@ export default function PatientMedications() {
               <div key={index} className="flex items-end space-x-2">
                 <div className="flex-grow">
                   <label htmlFor={`product-${index}`} className="block text-sm font-medium text-gray-700 mb-1">Producto</label>
-                  <Input
+                  <Select
                     id={`product-${index}`}
-                    type="text"
-                    value={med.product}
+                    value={med.maestro_producto_id}
                     onChange={(e) => handleMedicationChange(index, 'product', e.target.value)}
-                    placeholder="Nombre del medicamento"
+                    options={masterProducts.map(mp => ({ value: mp.id, label: mp.nombre }))}
+                    placeholder="Seleccione el medicamento"
                   />
                 </div>
                 <div>
