@@ -1,18 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
+import toast from 'react-hot-toast';
 
-// Usaremos elementos HTML básicos para Textarea, RadioGroup y Label
-// ya que los componentes de UI específicos no están disponibles o causaron problemas.
-
-import { 
-  ClipboardList, 
+import {
+  ClipboardList,
   AlertTriangle,
   CheckCircle
 } from 'lucide-react';
 
 export default function ChecklistProtocolo() {
+  const { user } = useAuth();
+  const submissionLock = useRef(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [answers, setAnswers] = useState({});
   const [actionPlans, setActionPlans] = useState({});
 
@@ -35,12 +39,79 @@ export default function ChecklistProtocolo() {
     setActionPlans(prev => ({ ...prev, [questionId]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Respuestas Protocolo:', answers);
-    console.log('Planes de Acción Protocolo:', actionPlans);
-    // Aquí iría la lógica para guardar en la base de datos
-    alert('Checklist de Protocolo completado. Revisa la consola para ver los datos.');
+    if (submissionLock.current) return;
+    submissionLock.current = true;
+    setIsSubmitting(true);
+
+    try {
+      if (!user) {
+        toast.error('Debe iniciar sesión para completar el checklist.');
+        return;
+      }
+
+      if (Object.keys(answers).length !== questions.length) {
+        toast.error('Por favor, responde todas las preguntas antes de completar el checklist.');
+        return;
+      }
+
+      const answeredCount = Object.keys(answers).length;
+      const totalQuestions = questions.length;
+      const percentageCompleted = Math.round((answeredCount / totalQuestions) * 100);
+      const findingsCount = Object.values(answers).filter(answer => answer === 'no').length;
+
+      const auditData = {
+        tipo_checklist: 'protocolo', // Changed type to 'protocolo'
+        usuario_id: user.id,
+        porcentaje_completado: percentageCompleted,
+        total_hallazgos: findingsCount,
+        observaciones_generales: null,
+      };
+
+      const { data: newAudit, error: auditError } = await supabase
+        .from('auditorias_checklist')
+        .insert([auditData])
+        .select('id')
+        .single();
+
+      if (auditError) {
+        console.error('Error inserting audit:', auditError);
+        toast.error('Error al guardar el checklist principal.');
+        return;
+      }
+
+      const auditId = newAudit.id;
+
+      const questionsToInsert = questions.map(q => ({
+        auditoria_id: auditId,
+        pregunta_id: q.id,
+        respuesta: answers[q.id],
+        plan_accion: answers[q.id] === 'no' ? (actionPlans[q.id] || null) : null,
+        evidencia_url: null,
+      }));
+
+      const { error: questionsError } = await supabase
+        .from('auditoria_preguntas')
+        .insert(questionsToInsert);
+
+      if (questionsError) {
+        console.error('Error inserting questions:', questionsError);
+        toast.error('Error al guardar las respuestas del checklist.');
+        return;
+      }
+
+      toast.success('Checklist de Protocolo completado y guardado exitosamente!');
+      setAnswers({});
+      setActionPlans({});
+
+    } catch (error: any) {
+      console.error('Error completing checklist:', error);
+      toast.error(error.message || 'Ocurrió un error al completar el checklist.');
+    } finally {
+      submissionLock.current = false;
+      setIsSubmitting(false);
+    }
   };
 
   const answeredCount = Object.keys(answers).length;
@@ -51,16 +122,16 @@ export default function ChecklistProtocolo() {
   return (
     <div className="p-6 space-y-6 bg-gray-50 min-h-full">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Checklist de Protocolo de Medicamentos</h1>
-        <p className="text-gray-600">Verificación de los protocolos de manejo de medicamentos.</p>
+        <h1 className="text-2xl font-bold text-gray-900">Checklist de Protocolo</h1>
+        <p className="text-gray-600">Verificación de los protocolos de almacenamiento y manejo.</p>
       </div>
 
       <Card className="bg-white p-6">
-        <div className="flex justify-between items-center mb-4">
-          <Badge variant="outline">Progreso: {percentageCompleted}%</Badge>
-          <Badge variant={findingsCount > 0 ? "destructive" : "secondary"}>Hallazgos: {findingsCount}</Badge>
-        </div>
         <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="flex justify-between items-center mb-4">
+            <Badge variant="outline">Progreso: {percentageCompleted}%</Badge>
+            <Badge variant={findingsCount > 0 ? "destructive" : "secondary"}>Hallazgos: {findingsCount}</Badge>
+          </div>
           {questions.map((q, index) => (
             <div key={q.id} className="border-b pb-4 last:border-b-0 last:pb-0">
               <p className="font-medium text-gray-800 mb-2">{index + 1}. {q.text}</p>
@@ -108,9 +179,8 @@ export default function ChecklistProtocolo() {
           ))}
 
           <div className="flex justify-end mt-6">
-            <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-              <CheckCircle className="w-4 h-4 mr-2" />
-              Completar Checklist
+            <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={isSubmitting}>
+              {isSubmitting ? 'Guardando...' : 'Completar Checklist'}
             </Button>
           </div>
         </form>

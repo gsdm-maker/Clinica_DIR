@@ -92,33 +92,25 @@ export default function ChecklistHistory() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {audits.map((audit) => (
-            <Card key={audit.id} className="bg-white p-6 shadow-md hover:shadow-lg transition-shadow duration-200">
-              <CardHeader className="p-0 pb-4">
-                <CardTitle className="text-lg font-semibold text-gray-800 capitalize">
-                  Checklist de {audit.tipo_checklist}
-                </CardTitle>
-                <p className="text-sm text-gray-500">
-                  Fecha: {format(new Date(audit.fecha_auditoria), 'dd/MM/yyyy HH:mm', { locale: es })}
-                </p>
-                <p className="text-sm text-gray-500">
-                  Realizado por: {audit.users?.name || 'Desconocido'}
-                </p>
-              </CardHeader>
-              <CardContent className="p-0 space-y-2">
+            <Card 
+              key={audit.id} 
+              className="bg-white p-6 shadow-md hover:shadow-lg transition-shadow duration-200"
+              title={`Checklist de ${audit.tipo_checklist}`}
+              subtitle={`Fecha: ${format(new Date(audit.fecha_auditoria), 'dd/MM/yyyy HH:mm', { locale: es })} - Realizado por: ${audit.users?.name || 'Desconocido'}`}
+            >
+              <p className="text-sm text-gray-700">
+                Progreso: <Badge variant="outline">{audit.porcentaje_completado}%</Badge>
+              </p>
+              <p className="text-sm text-gray-700">
+                Hallazgos: <Badge variant={audit.total_hallazgos > 0 ? "destructive" : "secondary"}>
+                  {audit.total_hallazgos}
+                </Badge>
+              </p>
+              {audit.observaciones_generales && (
                 <p className="text-sm text-gray-700">
-                  Progreso: <Badge variant="outline">{audit.porcentaje_completado}%</Badge>
+                  Observaciones: {audit.observaciones_generales}
                 </p>
-                <p className="text-sm text-gray-700">
-                  Hallazgos: <Badge variant={audit.total_hallazgos > 0 ? "destructive" : "secondary"}>
-                    {audit.total_hallazgos}
-                  </Badge>
-                </p>
-                {audit.observaciones_generales && (
-                  <p className="text-sm text-gray-700">
-                    Observaciones: {audit.observaciones_generales}
-                  </p>
-                )}
-              </CardContent>
+              )}
             </Card>
           ))}
         </div>
