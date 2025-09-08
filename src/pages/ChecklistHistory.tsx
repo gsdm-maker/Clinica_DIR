@@ -2,37 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
-import { Card } from '../components/ui/Card'; // Only import Card
-import { Badge } from '../components/ui/Badge'; // Import Badge
-import { Input } from '../components/ui/Input'; // Import Input
-import { Select } from '../components/ui/Select'; // Import Select
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
-
-interface AuditRecord {
-  id: string;
-  tipo_checklist: string;
-  fecha_auditoria: string;
-  usuario_id: string;
-  porcentaje_completado: number;
-  total_hallazgos: number;
-  observaciones_generales: string | null;
-  users: { name: string } | null; // Assuming users table has a name column
-}
+import { Card } from '../components/ui/Card';
 
 export default function ChecklistHistory() {
   const { user } = useAuth();
-  const [audits, setAudits] = useState<AuditRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Filter states
-  const [filterType, setFilterType] = useState<string>('');
-  const [filterDate, setFilterDate] = useState<string>('');
-  const [filterUser, setFilterUser] = useState<string>('');
+  const [auditCount, setAuditCount] = useState<number>(0);
 
   useEffect(() => {
-    const fetchAudits = async () => {
+    const fetchAuditsCount = async () => {
       if (!user) {
         setLoading(false);
         setError('Debe iniciar sesión para ver el historial de checklists.');
@@ -42,56 +21,22 @@ export default function ChecklistHistory() {
       setLoading(true);
       setError(null);
 
-      let query = supabase
+      const { count, error } = await supabase
         .from('auditorias_checklist')
-        .select(`
-          id,
-          tipo_checklist,
-          fecha_auditoria,
-          usuario_id,
-          porcentaje_completado,
-          total_hallazgos,
-          observaciones_generales,
-          users (name) // Fetch user name from the public.users table
-        `);
-
-      // Apply filters
-      if (filterType) {
-        query = query.eq('tipo_checklist', filterType);
-      }
-      if (filterDate) {
-        // Supabase date filtering might need specific format, assuming YYYY-MM-DD
-        query = query.gte('fecha_auditoria', `${filterDate}T00:00:00.000Z`);
-        query = query.lte('fecha_auditoria', `${filterDate}T23:59:59.999Z`);
-      }
-      if (filterUser) {
-        // This assumes 'users' is a foreign table and 'name' is the column to filter by
-        // Supabase doesn't directly support filtering on joined table columns in a simple .eq()
-        // For now, we'll filter on the client side or need a more complex RPC/view in Supabase
-        // For simplicity, let's assume a direct match on user_id for now if user is a UUID
-        // Or, if 'users' is a view/function that returns a single user, we might need to adjust.
-        // For the purpose of this exercise, I'll add a basic client-side filter for user name if fetched.
-        // A better solution would be to filter directly in the Supabase query if possible.
-      }
-
-      const { data, error } = await query.order('fecha_auditoria', { ascending: false });
+        .select('id', { count: 'exact' });
 
       if (error) {
-        console.error('Error fetching audits:', error);
+        console.error('Error fetching audits count:', error);
         toast.error('Error al cargar el historial de checklists.');
         setError(error.message);
       } else {
-        // Client-side filter for user name if not filtered by Supabase
-        const filteredData = filterUser
-          ? (data || []).filter(audit => audit.users?.name?.toLowerCase().includes(filterUser.toLowerCase()))
-          : (data || []);
-        setAudits(filteredData as AuditRecord[]);
+        setAuditCount(count || 0);
       }
       setLoading(false);
     };
 
-    fetchAudits();
-  }, [user, filterType, filterDate, filterUser]); // Add filter states to dependency array
+    fetchAuditsCount();
+  }, [user]);
 
   if (loading) {
     return (
@@ -117,59 +62,10 @@ export default function ChecklistHistory() {
         <p className="text-gray-600">Revisa los checklists completados anteriormente.</p>
       </div>
 
-      <div className="mb-4 p-4 bg-white rounded-lg shadow-md flex flex-wrap gap-4 items-end">
-        <div className="flex-1 min-w-[180px]">
-          <label htmlFor="filterType" className="block text-sm font-medium text-gray-700 mb-1">Tipo de Checklist</label>
-          <Select
-            id="filterType"
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            className="w-full"
-          >
-            <option value="">Todos</option>
-            <option value="almacenamiento">Almacenamiento</option>
-            <option value="protocolo">Protocolo</option>
-          </Select>
-        </div>
-        <div className="flex-1 min-w-[180px]">
-          <label htmlFor="filterDate" className="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
-          <Input
-            id="filterDate"
-            type="date"
-            value={filterDate}
-            onChange={(e) => setFilterDate(e.target.value)}
-            className="w-full"
-          />
-        </div>
-        <div className="flex-1 min-w-[180px]">
-          <label htmlFor="filterUser" className="block text-sm font-medium text-gray-700 mb-1">Usuario</label>
-          <Input
-            id="filterUser"
-            type="text"
-            placeholder="Filtrar por nombre de usuario"
-            value={filterUser}
-            onChange={(e) => setFilterUser(e.target.value)}
-            className="w-full"
-          />
-        </div>
-      </div>
-
-      {console.log('Audits state:', audits)} {/* Added console log */}
-
-      {!audits || audits.length === 0 ? (
-        <Card className="bg-white p-6 text-center text-gray-500">
-          <p>No hay checklists completados aún.</p>
-        </Card>
-      ) : (
-        <div>
-          <h2>Lista de Auditorías (Simplificada)</h2>
-          <ul>
-            {(audits || []).map((audit) => (
-              <li key={audit.id}>Audit ID: {audit.id}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <Card className="bg-white p-6 text-center text-gray-500">
+        <p>Total de checklists registrados: {auditCount}</p>
+        <p>Esta es una versión simplificada para depuración.</p>
+      </Card>
     </div>
   );
 }
