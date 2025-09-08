@@ -85,8 +85,8 @@ export default function ChecklistHistory() {
       } else {
         // Client-side filter for user name if not filtered by Supabase
         const filteredData = filterUser
-          ? data.filter(audit => audit.users?.name?.toLowerCase().includes(filterUser.toLowerCase()))
-          : data;
+          ? (data || []).filter(audit => audit.users?.name?.toLowerCase().includes(filterUser.toLowerCase()))
+          : (data || []);
         setAudits(filteredData as AuditRecord[]);
       }
       setLoading(false);
