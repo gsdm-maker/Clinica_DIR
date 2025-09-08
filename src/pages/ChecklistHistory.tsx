@@ -180,12 +180,10 @@ export default function ChecklistHistory() {
                   <td className="p-4 text-sm text-gray-800">{format(new Date(audit.fecha_auditoria), 'dd/MM/yyyy HH:mm', { locale: es })}</td>
                   <td className="p-4 text-sm text-gray-800">{audit.users?.name || 'Desconocido'}</td>
                   <td className="p-4 text-sm text-gray-800">
-                    <Badge variant="outline">{audit.porcentaje_completado}%</Badge>
+                    <span>{audit.porcentaje_completado}%</span>
                   </td>
                   <td className="p-4 text-sm text-gray-800">
-                    <Badge variant={audit.total_hallazgos > 0 ? "destructive" : "secondary"}>
-                      {audit.total_hallazgos}
-                    </Badge>
+                    <span>{audit.total_hallazgos}</span>
                   </td>
                   <td className="p-4 text-sm text-gray-800">
                     <button 
