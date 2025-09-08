@@ -154,7 +154,9 @@ export default function ChecklistHistory() {
         </div>
       </div>
 
-      {audits.length === 0 ? (
+      {console.log('Audits state:', audits)} {/* Added console log */}
+
+      {!audits || audits.length === 0 ? (
         <Card className="bg-white p-6 text-center text-gray-500">
           <p>No hay checklists completados aún.</p>
         </Card>
