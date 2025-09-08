@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { Card } from '../components/ui/Card'; // Only import Card
+import { Badge } from '../components/ui/Badge'; // Import Badge
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
