@@ -110,14 +110,8 @@ export default function ChecklistHistory() {
                   <td className="p-4 text-sm text-gray-800 capitalize">{audit.tipo_checklist}</td>
                   <td className="p-4 text-sm text-gray-800">{format(new Date(audit.fecha_auditoria), 'dd/MM/yyyy HH:mm', { locale: es })}</td>
                   <td className="p-4 text-sm text-gray-800">{audit.users?.name || 'Desconocido'}</td>
-                  <td className="p-4 text-sm text-gray-800">
-                    <Badge variant="outline">{audit.porcentaje_completado}%</Badge>
-                  </td>
-                  <td className="p-4 text-sm text-gray-800">
-                    <Badge variant={audit.total_hallazgos > 0 ? "destructive" : "secondary"}>
-                      {audit.total_hallazgos}
-                    </Badge>
-                  </td>
+                  <td className="p-4 text-sm text-gray-800">{audit.porcentaje_completado}%</td>
+                  <td className="p-4 text-sm text-gray-800">{audit.total_hallazgos}</td>
                   <td className="p-4 text-sm text-gray-800">
                     <button 
                       onClick={() => alert(`Ver detalles del checklist ${audit.id}`)} 
