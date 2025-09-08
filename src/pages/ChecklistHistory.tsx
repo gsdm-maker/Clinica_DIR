@@ -90,13 +90,38 @@ export default function ChecklistHistory() {
           <p>No hay checklists completados aún.</p>
         </Card>
       ) : (
-        <div>
-          <h2>Lista de Auditorías (Simplificada)</h2>
-          <ul>
-            {audits.map((audit) => (
-              <li key={audit.id}>ID: {audit.id} - Tipo: {audit.tipo_checklist}</li>
-            ))}
-          </ul>
+        <div className="overflow-x-auto">
+          <table className="min-w-full bg-white shadow-md rounded-lg overflow-hidden">
+            <thead className="bg-gray-100 border-b border-gray-200">
+              <tr>
+                <th className="text-left p-4 text-sm font-semibold text-gray-600">Tipo de Checklist</th>
+                <th className="text-left p-4 text-sm font-semibold text-gray-600">Fecha</th>
+                <th className="text-left p-4 text-sm font-semibold text-gray-600">Usuario</th>
+                <th className="text-left p-4 text-sm font-semibold text-gray-600">Progreso</th>
+                <th className="text-left p-4 text-sm font-semibold text-gray-600">Hallazgos</th>
+                <th className="text-left p-4 text-sm font-semibold text-gray-600">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {audits.map((audit) => (
+                <tr key={audit.id} className="border-b border-gray-200 hover:bg-gray-50">
+                  <td className="p-4 text-sm text-gray-800 capitalize">{audit.tipo_checklist}</td>
+                  <td className="p-4 text-sm text-gray-800">{audit.fecha_auditoria}</td>
+                  <td className="p-4 text-sm text-gray-800">{audit.users?.name || 'Desconocido'}</td>
+                  <td className="p-4 text-sm text-gray-800">{audit.porcentaje_completado}%</td>
+                  <td className="p-4 text-sm text-gray-800">{audit.total_hallazgos}</td>
+                  <td className="p-4 text-sm text-gray-800">
+                    <button 
+                      onClick={() => alert(`Ver detalles del checklist ${audit.id}`)} 
+                      className="bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold py-1 px-3 rounded"
+                    >
+                      Ver Detalle
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
