@@ -172,7 +172,7 @@ export default function ChecklistHistory() {
               </tr>
             </thead>
             <tbody>
-              {audits.map((audit) => (
+              {(audits || []).map((audit) => (
                 <tr key={audit.id} className="border-b border-gray-200 hover:bg-gray-50">
                   <td className="p-4 text-sm text-gray-800 capitalize">{audit.tipo_checklist}</td>
                   <td className="p-4 text-sm text-gray-800">{format(new Date(audit.fecha_auditoria), 'dd/MM/yyyy HH:mm', { locale: es })}</td>
