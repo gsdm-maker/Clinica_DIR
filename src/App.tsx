@@ -15,6 +15,7 @@ import DeliveryHistory from './pages/DeliveryHistory';
 import ChecklistAlmacenamiento from './pages/ChecklistAlmacenamiento';
 import ChecklistProtocolo from './pages/ChecklistProtocolo'; // Import new page
 import ChecklistHistory from './pages/ChecklistHistory'; // Import new page
+import { Users } from './pages/Users'; // Import new page
 
 function ProtectedRoute() {
   const { user } = useAuth();
@@ -61,6 +62,7 @@ function AppRoutes() {
         <Route path="/checklist-storage" element={<ChecklistAlmacenamiento />} />
         <Route path="/checklist-protocol" element={<ChecklistProtocolo />} /> {/* Add new route */}
         <Route path="/checklist-history" element={<ChecklistHistory />} /> {/* Add new route */}
+        <Route path="/users" element={<Users />} />
       </Route>
 
       {/* Redirección para cualquier otra ruta */}
