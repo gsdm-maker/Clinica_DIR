@@ -4,14 +4,25 @@ import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { Card } from '../components/ui/Card';
 
+interface AuditRecord {
+  id: string;
+  tipo_checklist: string;
+  fecha_auditoria: string;
+  usuario_id: string;
+  porcentaje_completado: number;
+  total_hallazgos: number;
+  observaciones_generales: string | null;
+  users: { name: string } | null; // Assuming users table has a name column
+}
+
 export default function ChecklistHistory() {
   const { user } = useAuth();
+  const [audits, setAudits] = useState<AuditRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [auditCount, setAuditCount] = useState<number>(0);
 
   useEffect(() => {
-    const fetchAuditsCount = async () => {
+    const fetchAudits = async () => {
       if (!user) {
         setLoading(false);
         setError('Debe iniciar sesión para ver el historial de checklists.');
@@ -21,21 +32,31 @@ export default function ChecklistHistory() {
       setLoading(true);
       setError(null);
 
-      const { count, error } = await supabase
+      const { data, error } = await supabase
         .from('auditorias_checklist')
-        .select('id', { count: 'exact' });
+        .select(`
+          id,
+          tipo_checklist,
+          fecha_auditoria,
+          usuario_id,
+          porcentaje_completado,
+          total_hallazgos,
+          observaciones_generales,
+          users (name) // Fetch user name from the public.users table
+        `)
+        .order('fecha_auditoria', { ascending: false });
 
       if (error) {
-        console.error('Error fetching audits count:', error);
+        console.error('Error fetching audits:', error);
         toast.error('Error al cargar el historial de checklists.');
         setError(error.message);
       } else {
-        setAuditCount(count || 0);
+        setAudits(data as AuditRecord[]);
       }
       setLoading(false);
     };
 
-    fetchAuditsCount();
+    fetchAudits();
   }, [user]);
 
   if (loading) {
@@ -62,10 +83,22 @@ export default function ChecklistHistory() {
         <p className="text-gray-600">Revisa los checklists completados anteriormente.</p>
       </div>
 
-      <Card className="bg-white p-6 text-center text-gray-500">
-        <p>Total de checklists registrados: {auditCount}</p>
-        <p>Esta es una versión simplificada para depuración.</p>
-      </Card>
+      {console.log('Audits state:', audits)} {/* Added console log */}
+
+      {audits.length === 0 ? (
+        <Card className="bg-white p-6 text-center text-gray-500">
+          <p>No hay checklists completados aún.</p>
+        </Card>
+      ) : (
+        <div>
+          <h2>Lista de Auditorías (Simplificada)</h2>
+          <ul>
+            {audits.map((audit) => (
+              <li key={audit.id}>ID: {audit.id} - Tipo: {audit.tipo_checklist}</li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
