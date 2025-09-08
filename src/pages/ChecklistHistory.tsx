@@ -70,8 +70,6 @@ export default function ChecklistHistory() {
         // For now, we'll filter on the client side or need a more complex RPC/view in Supabase
         // For simplicity, let's assume a direct match on user_id for now if user is a UUID
         // Or, if 'users' is a view/function that returns a single user, we might need to adjust.
-        // For now, we'll leave this as a placeholder for a more robust solution.
-        // If 'users' table has a 'name' column and we want to filter by it, we'd need a join or RPC.
         // For the purpose of this exercise, I'll add a basic client-side filter for user name if fetched.
         // A better solution would be to filter directly in the Supabase query if possible.
       }
