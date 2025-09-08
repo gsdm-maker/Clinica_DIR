@@ -8,8 +8,6 @@ import {
   CheckSquare, 
   Syringe, 
   History, 
-  Monitor, 
-  FileText,
   Users,
   Settings,
   LogOut,
@@ -29,9 +27,6 @@ const navigation = [
   { name: 'Historial de Entregas', href: '/delivery-history', icon: Archive, permission: 'patient_medications' }, // New Link
   { name: 'Historial de Checklists', href: '/checklist-history', icon: History, permission: 'checklists' }, // New Link
   { name: 'Historial Movimientos', href: '/movements', icon: History, permission: 'view_reports' },
-  { name: 'Dispositivos Médicos', href: '/medical-devices', icon: Monitor, permission: 'manage_stock' },
-  { name: 'Egresos', href: '/egress', icon: Minus, permission: 'exits' },
-  { name: 'Reportes', href: '/reports', icon: FileText, permission: 'view_reports' },
   { name: 'Usuarios', href: '/users', icon: Users, permission: 'all' },
   { name: 'Maestros', href: '/product-master', icon: Settings, permission: 'manage_master_products' },
 ];
