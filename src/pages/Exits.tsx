@@ -198,7 +198,28 @@ export default function Exits() {
 
     } catch (error: any) {
       console.error('Error en la salida masiva:', error);
-      toast.error(`Error: ${error.message}`);
+      if (error.message.includes('Stock insuficiente')) {
+        toast.error('El stock de un producto ha cambiado. Revisa las cantidades y vuelve a intentarlo.');
+        // Refrescar la lista de lotes para el producto seleccionado
+        const fetchAvailableLots = async () => {
+          if (!selectedMasterProductId) return;
+          setLoading(true);
+          try {
+            const { data, error } = await supabase.rpc('get_dispatch_lots', {
+              param_maestro_producto_id: selectedMasterProductId,
+            });
+            if (error) throw error;
+            setAvailableLots(data || []);
+          } catch (e: any) {
+            toast.error(`Error al refrescar los lotes: ${e.message}`);
+          } finally {
+            setLoading(false);
+          }
+        };
+        fetchAvailableLots();
+      } else {
+        toast.error(`Error: ${error.message}`);
+      }
     } finally {
       setLoading(false);
     }
