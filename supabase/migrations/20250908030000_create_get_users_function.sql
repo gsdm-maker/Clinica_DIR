@@ -15,8 +15,8 @@ as $
   select
     id,
     email,
-    raw_user_meta_data->>'name' as name,
-    raw_user_meta_data->>'role' as role,
+    coalesce(raw_user_meta_data->>'name', '') as name,
+    coalesce(raw_user_meta_data->>'role', role, '') as role,
     created_at,
     last_sign_in_at
   from auth.users;

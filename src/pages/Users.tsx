@@ -29,7 +29,7 @@ export function Users() {
         console.error('Error fetching users:', error);
         throw error;
       }
-      
+      console.log('Users data from Supabase:', data);
       setUsers((data as User[]) || []);
     } catch (error: any) {
       toast.error('Error al cargar los usuarios. Revise la consola para más detalles.');
