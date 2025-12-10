@@ -1,13 +1,13 @@
 import React, { useState, useRef } from 'react'; // Added useRef
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
+import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { supabase } from '../lib/supabase'; // Import supabase
 import { useAuth } from '../contexts/AuthContext'; // Import useAuth
 import toast from 'react-hot-toast'; // Import toast
+import imageCompression from 'browser-image-compression';
 
 import {
-  ClipboardList,
   AlertTriangle,
   CheckCircle
 } from 'lucide-react';
@@ -17,8 +17,9 @@ export default function ChecklistAlmacenamiento() {
   const submissionLock = useRef(false); // Submission lock
   const [isSubmitting, setIsSubmitting] = useState(false); // UI state for submitting
 
-  const [answers, setAnswers] = useState({});
-  const [actionPlans, setActionPlans] = useState({});
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [actionPlans, setActionPlans] = useState<Record<string, string>>({});
+  const [evidenceUrls, setEvidenceUrls] = useState<Record<string, string>>({});
 
   const questions = [
     { id: 'q1', text: '¿La temperatura del almacén está entre 15-25°C?' },
@@ -92,7 +93,7 @@ export default function ChecklistAlmacenamiento() {
         pregunta_id: q.id,
         respuesta: answers[q.id],
         plan_accion: answers[q.id] === 'no' ? (actionPlans[q.id] || null) : null,
-        evidencia_url: null, // No photo upload yet
+        evidencia_url: evidenceUrls[q.id] || null,
       }));
 
       // 5. Insert questions data
@@ -110,6 +111,7 @@ export default function ChecklistAlmacenamiento() {
       // Clear form
       setAnswers({});
       setActionPlans({});
+      setEvidenceUrls({});
 
     } catch (error: any) {
       console.error('Error completing checklist:', error);
@@ -135,8 +137,8 @@ export default function ChecklistAlmacenamiento() {
       <Card className="bg-white p-6">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="flex justify-between items-center mb-4">
-            <Badge variant="outline">Progreso: {percentageCompleted}%</Badge>
-            <Badge variant={findingsCount > 0 ? "destructive" : "secondary"}>Hallazgos: {findingsCount}</Badge>
+            <Badge variant="default">Progreso: {percentageCompleted}%</Badge>
+            <Badge variant={findingsCount > 0 ? "danger" : "info"}>Hallazgos: {findingsCount}</Badge>
           </div>
           {questions.map((q, index) => (
             <div key={q.id} className="border-b pb-4 last:border-b-0 last:pb-0">
@@ -179,6 +181,56 @@ export default function ChecklistAlmacenamiento() {
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
                     rows={3}
                   ></textarea>
+
+                  <div className="mt-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Evidencia Fotográfica (Opcional)</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          try {
+                            const options = {
+                              maxSizeMB: 1,
+                              maxWidthOrHeight: 1920,
+                              useWebWorker: true,
+                              initialQuality: 0.8
+                            };
+
+                            const compressedFile = await imageCompression(file, options);
+
+                            const fileExt = file.name.split('.').pop();
+                            const fileName = `${Math.random()}.${fileExt}`;
+                            const filePath = `${fileName}`;
+
+                            toast.promise(
+                              supabase.storage.from('checklist-evidence').upload(filePath, compressedFile),
+                              {
+                                loading: 'Comprimiendo y subiendo...',
+                                success: 'Imagen guardada',
+                                error: 'Error al subir',
+                              }
+                            ).then(({ data, error }) => {
+                              if (!error && data) {
+                                const { data: { publicUrl } } = supabase.storage.from('checklist-evidence').getPublicUrl(filePath);
+                                setEvidenceUrls(prev => ({ ...prev, [q.id]: publicUrl }));
+                              }
+                            });
+                          } catch (error) {
+                            console.error('Error uploading:', error);
+                            toast.error('Error al procesar la imagen');
+                          }
+                        }
+                      }}
+                      className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                    />
+                    {evidenceUrls[q.id] && (
+                      <p className="mt-1 text-xs text-green-600 flex items-center">
+                        <CheckCircle className="w-3 h-3 mr-1" /> Imagen adjuntada exitosamente
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

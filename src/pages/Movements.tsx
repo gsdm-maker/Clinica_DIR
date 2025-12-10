@@ -20,7 +20,7 @@ type Movement = {
   tipo_movimiento: 'entrada' | 'salida';
   cantidad: number;
   condicion: string;
-  usuario_email: string;
+  usuario_nombre: string;
   motivo: string;
 };
 
@@ -88,7 +88,7 @@ export function Movements() {
     const { name, value } = e.target;
     setFilters(prev => ({ ...prev, [name]: value }));
   };
-  
+
   const handleExport = () => {
     if (movements.length === 0) {
       toast.error('No hay datos para exportar.');
@@ -104,7 +104,7 @@ export function Movements() {
       'Tipo de Movimiento': mov.tipo_movimiento,
       'Cantidad': mov.cantidad,
       'Condición': mov.condicion,
-      'Usuario': mov.usuario_email,
+      'Usuario': mov.usuario_nombre,
       'Motivo/Guía': mov.motivo,
     }));
 
@@ -198,13 +198,13 @@ export function Movements() {
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{mov.numero_lote}</td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{mov.proveedor_nombre}</td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm">
-                      <Badge variant={mov.tipo_movimiento === 'entrada' ? 'default' : 'secondary'}>{mov.tipo_movimiento}</Badge>
+                      <Badge variant={mov.tipo_movimiento === 'entrada' ? 'default' : 'info'}>{mov.tipo_movimiento}</Badge>
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm font-semibold">{mov.cantidad}</td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm">
-                      <Badge variant={mov.condicion === 'Bueno' ? 'default' : 'destructive'}>{mov.condicion}</Badge>
+                      <Badge variant={mov.condicion === 'Bueno' ? 'default' : 'danger'}>{mov.condicion}</Badge>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{mov.usuario_email}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{mov.usuario_nombre}</td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{mov.motivo}</td>
                   </tr>
                 ))

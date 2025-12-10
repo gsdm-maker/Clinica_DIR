@@ -48,7 +48,7 @@ export function RecentMovements({ movements }: RecentMovementsProps) {
         {movements.length === 0 ? (
           <p className="text-gray-500 text-center py-4">No hay movimientos recientes</p>
         ) : (
-          movements.map((movement) => (
+          movements.slice(0, 10).map((movement) => (
             <div key={movement.id} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-b-0">
               <div className="flex-1">
                 <div className="flex items-center space-x-3">
@@ -64,7 +64,7 @@ export function RecentMovements({ movements }: RecentMovementsProps) {
                     Cantidad: {movement.cantidad} {/* Use cantidad */}
                   </span>
                   <span className="text-sm text-gray-500">
-                    Usuario: {movement.usuario_email || 'Usuario no disponible'} {/* Use usuario_email */}
+                    Usuario: {movement.usuario_nombre || 'Usuario no disponible'} {/* Use usuario_nombre */}
                   </span>
                 </div>
                 {/* Removed patient_name and patient_rut as they are not in the SQL output for recent_movements */}

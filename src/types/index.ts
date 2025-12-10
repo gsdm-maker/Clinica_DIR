@@ -34,7 +34,7 @@ export interface Product {
   actualizado_en: string;
   maestro_productos?: { // Relación con maestro_productos
     nombre: string;
-  }; 
+  };
 }
 
 export interface Movement {
@@ -45,7 +45,7 @@ export interface Movement {
   tipo_movimiento: 'entrada' | 'salida_administracion' | 'salida_eliminacion'; // De SQL's tipo_movimiento
   cantidad: number; // De SQL's cantidad
   condicion: string; // De SQL's condicion
-  usuario_email: string; // De SQL's usuario_email
+  usuario_nombre: string; // De SQL's usuario_nombre
   motivo?: string; // De SQL's motivo
   fecha: string; // De SQL's fecha (creado_en)
 
