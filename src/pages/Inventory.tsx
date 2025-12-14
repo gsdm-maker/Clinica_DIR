@@ -27,9 +27,22 @@ export function Inventory() {
   const [products, setProducts] = useState<InventoryProduct[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<InventoryProduct[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [conditionFilter, setConditionFilter] = useState('');
+
+  // Date filters
+  const [fechaIngresoDesde, setFechaIngresoDesde] = useState('');
+  const [fechaIngresoHasta, setFechaIngresoHasta] = useState('');
+  const [fechaVencimientoDesde, setFechaVencimientoDesde] = useState('');
+  const [fechaVencimientoHasta, setFechaVencimientoHasta] = useState('');
+
+  // Dynamic categories
+  const [categoriesList, setCategoriesList] = useState<{ value: string, label: string }[]>([]);
+  const [showZeroStock, setShowZeroStock] = useState(false); // New state for toggling zero stock items
+
   const [showModal, setShowModal] = useState(false);
   const [showSegregateModal, setShowSegregateModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<InventoryProduct | null>(null);
@@ -58,17 +71,6 @@ export function Inventory() {
   const [masterProductsList, setMasterProductsList] = useState<MasterProduct[]>([]);
   const [providersList, setProvidersList] = useState<Provider[]>([]);
 
-  const categories = [
-    { value: 'sueros', label: 'Sueros' },
-    { value: 'acidos', label: 'Ácidos' },
-    { value: 'medicamentos', label: 'Medicamentos' },
-    { value: 'material_quirurgico', label: 'Material Quirúrgico' },
-    { value: 'antisepticos', label: 'Antisépticos' },
-    { value: 'vendajes', label: 'Vendajes' },
-    { value: 'jeringas', label: 'Jeringas' },
-    { value: 'otros', label: 'Otros' }
-  ];
-
   const conditions = [
     { value: 'Bueno', label: 'Bueno' },
     { value: 'Cuarentena', label: 'Cuarentena' },
@@ -85,7 +87,7 @@ export function Inventory() {
         console.error('Error fetching inventory:', error);
         throw error;
       }
-      
+
       setProducts((data as InventoryProduct[]) || []);
     } catch (error: any) {
       toast.error('Error al cargar el inventario. Revise la consola para más detalles.');
@@ -98,7 +100,35 @@ export function Inventory() {
     fetchProducts();
     fetchMasterProductsList();
     fetchProvidersList();
+    fetchCategories();
   }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('categorias')
+        .select('nombre')
+        .eq('active', true)
+        .order('nombre');
+
+      if (error) throw error;
+
+      if (data) {
+        const formattedCategories = data.map(cat => ({
+          value: cat.nombre,
+          label: cat.nombre.charAt(0).toUpperCase() + cat.nombre.slice(1).replace(/_/g, ' ')
+        }));
+        setCategoriesList(formattedCategories);
+      }
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      // Fallback
+      setCategoriesList([
+        { value: 'medicamentos', label: 'Medicamentos' },
+        { value: 'insumos', label: 'Insumos' }
+      ]);
+    }
+  };
 
   const filterProducts = () => {
     let filtered = products;
@@ -115,12 +145,33 @@ export function Inventory() {
     if (conditionFilter) {
       filtered = filtered.filter(p => p.condicion === conditionFilter);
     }
+
+    // Date filtering logic
+    if (fechaIngresoDesde) {
+      filtered = filtered.filter(p => p.fecha_ingreso && p.fecha_ingreso >= fechaIngresoDesde);
+    }
+    if (fechaIngresoHasta) {
+      filtered = filtered.filter(p => p.fecha_ingreso && p.fecha_ingreso <= fechaIngresoHasta + 'T23:59:59');
+    }
+
+    if (fechaVencimientoDesde) {
+      filtered = filtered.filter(p => p.fecha_vencimiento && p.fecha_vencimiento >= fechaVencimientoDesde);
+    }
+    if (fechaVencimientoHasta) {
+      filtered = filtered.filter(p => p.fecha_vencimiento && p.fecha_vencimiento <= fechaVencimientoHasta);
+    }
+
+    // Hide zero stock by default
+    if (!showZeroStock) {
+      filtered = filtered.filter(p => p.stock_actual > 0);
+    }
+
     setFilteredProducts(filtered);
   };
 
   useEffect(() => {
     filterProducts();
-  }, [products, searchTerm, categoryFilter, conditionFilter]);
+  }, [products, searchTerm, categoryFilter, conditionFilter, fechaIngresoDesde, fechaIngresoHasta, fechaVencimientoDesde, fechaVencimientoHasta, showZeroStock]);
 
   const fetchMasterProductsList = async () => {
     try {
@@ -168,7 +219,7 @@ export function Inventory() {
         if (existingProduct) {
           throw new Error(`Ya existe un producto con el número de lote "${upperCaseLote}". No se puede crear un nuevo producto con el mismo lote desde esta interfaz.`);
         }
-        
+
         formData.numero_lote = upperCaseLote;
       }
 
@@ -178,9 +229,9 @@ export function Inventory() {
         fecha_ingreso: isCreatingNew ? new Date().toISOString() : undefined,
         bloqueado: formData.condicion === 'vencido',
       };
-      
+
       if (!isCreatingNew) {
-          delete productData.fecha_ingreso;
+        delete productData.fecha_ingreso;
       }
 
       if (isEditing && selectedProduct) {
@@ -315,7 +366,7 @@ export function Inventory() {
       case 'cuarentena': return 'warning';
       case 'vencido': return 'danger';
       case 'dañado': return 'danger';
-      default: return 'secondary';
+      default: return 'default';
     }
   };
 
@@ -331,24 +382,74 @@ export function Inventory() {
           <p className="text-gray-600 mt-2">Gestión completa del inventario de insumos médicos</p>
         </div>
         {canManageStock && (
-          <Button onClick={() => openModal(undefined, true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Agregar Producto
-          </Button>
+          // Botón de agregar eliminado por solicitud del usuario
+          <div className="hidden"></div>
         )}
       </div>
 
       <Card className="mb-6 p-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Input placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
-          <Select options={[{ value: '', label: 'Todas las categorías' }, ...categories]} value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} />
-          <Select options={[{ value: '', label: 'Todas las condiciones' }, ...conditions.map(c => ({ value: c.value, label: c.label }))]} value={conditionFilter} onChange={(e) => setConditionFilter(e.target.value)} />
-          <Button variant="secondary" onClick={() => { setSearchTerm(''); setCategoryFilter(''); setConditionFilter(''); }}>
+        <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-4 items-end">
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Buscar</label>
+            <Input placeholder="Buscar por nombre, lote..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
+            <Select options={[{ value: '', label: 'Todas' }, ...categoriesList]} value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Condición</label>
+            <Select options={[{ value: '', label: 'Todas' }, ...conditions.map(c => ({ value: c.value, label: c.label }))]} value={conditionFilter} onChange={(e) => setConditionFilter(e.target.value)} />
+          </div>
+
+          {/* Filtros de Fecha - Fila 2 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Ingreso Desde</label>
+            <Input type="date" value={fechaIngresoDesde} onChange={(e) => setFechaIngresoDesde(e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Ingreso Hasta</label>
+            <Input type="date" value={fechaIngresoHasta} onChange={(e) => setFechaIngresoHasta(e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Vencimiento Desde</label>
+            <Input type="date" value={fechaVencimientoDesde} onChange={(e) => setFechaVencimientoDesde(e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Vencimiento Hasta</label>
+            <Input type="date" value={fechaVencimientoHasta} onChange={(e) => setFechaVencimientoHasta(e.target.value)} />
+          </div>
+        </div>
+
+        <div className="md:col-span-4 lg:col-span-5 flex items-center justify-between pt-4 border-t border-gray-100 mt-4">
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id="showZeroStock"
+              checked={showZeroStock}
+              onChange={(e) => setShowZeroStock(e.target.checked)}
+              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            />
+            <label htmlFor="showZeroStock" className="ml-2 block text-sm text-gray-900">
+              Mostrar lotes sin stock (0)
+            </label>
+          </div>
+
+          <Button variant="secondary" onClick={() => {
+            setSearchTerm('');
+            setCategoryFilter('');
+            setConditionFilter('');
+            setFechaIngresoDesde('');
+            setFechaIngresoHasta('');
+            setFechaVencimientoDesde('');
+            setFechaVencimientoHasta('');
+            setShowZeroStock(false);
+          }}>
             <Filter className="w-4 h-4 mr-2" />
             Limpiar Filtros
           </Button>
         </div>
-      </Card>
+      </Card >
 
       <Card>
         <div className="overflow-x-auto">
@@ -486,6 +587,6 @@ export function Inventory() {
           </div>
         </form>
       </Modal>
-    </div>
+    </div >
   );
 }

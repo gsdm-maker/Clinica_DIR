@@ -11,11 +11,14 @@ export interface User {
 export interface MasterProduct {
   id: string;
   nombre: string;
-  categoria: string;
-  descripcion?: string;
+  categoria_id: string; // Foreign Key
+  categoria?: string; // Optional: Only present when joined (display name)
+  descripcion?: string; // Add description property
   stock_critico: number;
-  creado_en: string;
-  actualizado_en: string;
+  creado_en?: string;
+  actualizado_en?: string;
+  // Included via join in some queries
+  categorias?: Category;
 }
 
 // La tabla `productos` ahora representa lotes de un producto maestro
@@ -116,3 +119,11 @@ export interface EntregaItem {
 }
 
 // ... (los otros tipos como Checklist, PatientMedication, etc. se mantienen igual)
+
+export interface Category {
+  id: string;
+  nombre: string;
+  descripcion?: string;
+  active: boolean;
+  created_at: string;
+}

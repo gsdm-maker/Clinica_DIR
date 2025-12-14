@@ -8,7 +8,7 @@ import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 import { Badge } from '../components/ui/Badge';
 import { MasterProduct } from '../types';
-import { format } from 'date-fns';
+import { format, subDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { clsx } from 'clsx';
 import { Trash2, ShoppingCart } from 'lucide-react';
@@ -32,43 +32,95 @@ export default function Exits() {
 
   // Data states
   const [allMasterProducts, setAllMasterProducts] = useState<MasterProduct[]>([]);
-  const [categories, setCategories] = useState<string[]>([]);
+  const [categories, setCategories] = useState<{ id: string; nombre: string }[]>([]);
   const [availableLots, setAvailableLots] = useState<DispatchLot[]>([]);
-  
+
   // Filter & Form states
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
   const [selectedMasterProductId, setSelectedMasterProductId] = useState<string>('');
   const [currentQuantities, setCurrentQuantities] = useState<Map<string, number>>(new Map());
   const [shoppingCart, setShoppingCart] = useState<Map<string, { lot: DispatchLot, quantity: number }>>(new Map());
   const [motivo, setMotivo] = useState('');
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // State to hold IDs of master products that explicitly have stock > 0
+  const [stockMaestroIds, setStockMaestroIds] = useState<Set<string>>(new Set());
 
   // Fetch all master products and derive categories
   useEffect(() => {
-    const fetchMasterData = async () => {
+    const fetchData = async () => {
       try {
-        const { data, error } = await supabase
-          .from('maestro_productos')
-          .select('id, nombre, categoria')
-          .order('nombre', { ascending: true });
-        if (error) throw error;
-        
-        setAllMasterProducts(data || []);
-        const uniqueCategories = Array.from(new Set(data.map(p => p.categoria).filter(Boolean)));
-        setCategories(uniqueCategories.sort());
+        const [productsResponse, categoriesResponse, stockResponse] = await Promise.all([
+          supabase
+            .from('maestro_productos')
+            .select('*, categorias(id, nombre)')
+            .order('nombre', { ascending: true }),
+          supabase
+            .from('categorias')
+            .select('id, nombre')
+            .eq('active', true)
+            .order('nombre', { ascending: true }),
+          supabase
+            .from('productos')
+            .select('maestro_producto_id')
+            .gt('stock_actual', 0)
+        ]);
+
+        if (productsResponse.error) throw productsResponse.error;
+        if (categoriesResponse.error) throw categoriesResponse.error;
+        if (stockResponse.error) throw stockResponse.error;
+
+        setAllMasterProducts(productsResponse.data || []);
+
+        // Extract unique master product IDs with stock
+        const stockIds = new Set((stockResponse.data || []).map(p => p.maestro_producto_id));
+        setStockMaestroIds(stockIds);
+
+        // Filter categories: only show those that have at least one product with stock
+        const productsWithStock = (productsResponse.data || []).filter(p => stockIds.has(p.id));
+        const activeCategoryIds = new Set();
+        productsWithStock.forEach(p => {
+          if (p.categoria_id) activeCategoryIds.add(p.categoria_id);
+          // Handle joined data if necessary for category determination (though direct ID is better)
+          // Based on previous logic, we rely on filtering logic below.
+        });
+
+        // Filter categories list
+        const allCats = categoriesResponse.data || [];
+        const validCats = allCats.filter(c => activeCategoryIds.has(c.id));
+        setCategories(validCats);
 
       } catch (error) {
-        toast.error('Error al cargar datos maestros.');
+        console.error('Error fetching data:', error);
+        toast.error('Error al cargar datos iniciales.');
       }
     };
-    fetchMasterData();
-  }, []);
+    fetchData();
+  }, [refreshTrigger]); // Reload valid options when an exit (refresh) happens
 
   const filteredMasterProducts = useMemo(() => {
-    if (!selectedCategory) {
-      return allMasterProducts;
+    // 1. Filter by stock existence (must be in stockMaestroIds)
+    const stockAvailableProducts = allMasterProducts.filter(p => stockMaestroIds.has(p.id));
+
+    if (!selectedCategoryId) {
+      return stockAvailableProducts;
     }
-    return allMasterProducts.filter(p => p.categoria === selectedCategory);
-  }, [selectedCategory, allMasterProducts]);
+
+    // 2. Filter by category
+    return stockAvailableProducts.filter(p => {
+      const directMatch = p.categoria_id === selectedCategoryId;
+      let joinedId = undefined;
+      if (p.categorias) {
+        if (Array.isArray(p.categorias)) {
+          joinedId = p.categorias[0]?.id;
+        } else {
+          // @ts-ignore
+          joinedId = p.categorias.id;
+        }
+      }
+      return directMatch || joinedId === selectedCategoryId;
+    });
+  }, [selectedCategoryId, allMasterProducts, stockMaestroIds]);
 
 
   useEffect(() => {
@@ -82,7 +134,7 @@ export default function Exits() {
         const { data, error } = await supabase.rpc('get_dispatch_lots', {
           param_maestro_producto_id: selectedMasterProductId,
         });
-        
+
         if (error) throw error;
         setAvailableLots(data || []);
       } catch (error: any) {
@@ -97,7 +149,7 @@ export default function Exits() {
   }, [selectedMasterProductId]);
 
   const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedCategory(e.target.value);
+    setSelectedCategoryId(e.target.value);
     setSelectedMasterProductId('');
     setAvailableLots([]);
     setCurrentQuantities(new Map());
@@ -134,10 +186,10 @@ export default function Exits() {
       if (lotToAdd) {
         const existingCartItem = newCart.get(lotKey);
         const newQuantity = (existingCartItem ? existingCartItem.quantity : 0) + quantity;
-        
+
         if (newQuantity > lotToAdd.stock_actual) {
-            toast.error(`No puedes añadir más de ${lotToAdd.stock_actual} unidades del lote ${lotToAdd.numero_lote} (${lotToAdd.condicion_lote})`);
-            return;
+          toast.error(`No puedes añadir más de ${lotToAdd.stock_actual} unidades del lote ${lotToAdd.numero_lote} (${lotToAdd.condicion_lote})`);
+          return;
         }
 
         newCart.set(lotKey, { lot: lotToAdd, quantity: newQuantity });
@@ -147,7 +199,7 @@ export default function Exits() {
 
     setShoppingCart(newCart);
     setCurrentQuantities(new Map());
-    if(itemsAdded > 0) toast.success(`${itemsAdded} tipo(s) de lote(s) añadido(s) al carrito.`);
+    if (itemsAdded > 0) toast.success(`${itemsAdded} tipo(s) de lote(s) añadido(s) al carrito.`);
   };
 
   const handleRemoveFromCart = (lotKey: string) => {
@@ -191,10 +243,11 @@ export default function Exits() {
       toast.success('Salida masiva registrada correctamente.');
       setShoppingCart(new Map());
       setMotivo('');
-      setSelectedMasterProductId(''); 
-      setSelectedCategory('');
+      setSelectedMasterProductId('');
+      setSelectedCategoryId('');
       setAvailableLots([]);
       setCurrentQuantities(new Map());
+      setRefreshTrigger(prev => prev + 1); // Trigger history refresh
 
     } catch (error: any) {
       console.error('Error en la salida masiva:', error);
@@ -236,21 +289,19 @@ export default function Exits() {
 
       <Card className="p-6 space-y-6 mb-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Select
-                label="1. Filtrar por Categoría"
-                value={selectedCategory}
-                onChange={handleCategoryChange}
-                options={categories.map(c => ({ value: c, label: c }))}
-                placeholder="Todas las categorías..."
-            />
-            <Select
-                label="2. Seleccionar Producto"
-                value={selectedMasterProductId}
-                onChange={handleMasterProductChange}
-                options={filteredMasterProducts.map(p => ({ value: p.id, label: p.nombre }))}
-                placeholder="Elige un producto para ver sus lotes..."
-                disabled={filteredMasterProducts.length === 0}
-            />
+          <Select
+            label="1. Filtrar por Categoría"
+            value={selectedCategoryId}
+            onChange={handleCategoryChange}
+            options={[{ value: '', label: 'Todas las categorías...' }, ...categories.map(c => ({ value: c.id, label: c.nombre }))]}
+          />
+          <Select
+            label="2. Seleccionar Producto"
+            value={selectedMasterProductId}
+            onChange={handleMasterProductChange}
+            options={[{ value: '', label: 'Elige un producto...' }, ...filteredMasterProducts.map(p => ({ value: p.id, label: p.nombre }))]}
+            disabled={filteredMasterProducts.length === 0}
+          />
         </div>
 
         {availableLots.length > 0 && (
@@ -280,10 +331,10 @@ export default function Exits() {
                     <tr key={lotKey} className={rowClassName}>
                       <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
                         {lot.numero_lote}
-                        {isFefoRecommended && <Badge variant="default" className="ml-2 bg-green-600 text-white">FEFO</Badge>}
+                        {isFefoRecommended && <Badge variant="default">FEFO</Badge>}
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm">
-                        <Badge variant={lot.condicion_lote === 'Bueno' ? 'default' : 'destructive'}>{lot.condicion_lote}</Badge>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm capitalize">
+                        <Badge variant={getConditionVariant(lot.condicion_lote)}>{lot.condicion_lote?.toLowerCase()}</Badge>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm">{lot.stock_actual}</td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm">
@@ -307,10 +358,10 @@ export default function Exits() {
               </tbody>
             </table>
             <div className="flex justify-end mt-4">
-                <Button type="button" onClick={handleAddToCart} disabled={currentQuantities.size === 0}>
-                    <ShoppingCart className="w-4 h-4 mr-2"/>
-                    Añadir al Carrito de Salida
-                </Button>
+              <Button type="button" onClick={handleAddToCart} disabled={currentQuantities.size === 0}>
+                <ShoppingCart className="w-4 h-4 mr-2" />
+                Añadir al Carrito de Salida
+              </Button>
             </div>
           </div>
         )}
@@ -319,57 +370,179 @@ export default function Exits() {
       {/* SECCIÓN 2: CARRITO DE SALIDA */}
       {cartItems.length > 0 && (
         <Card className="p-6 space-y-6">
-            <h2 className="text-2xl font-bold text-gray-900">Carrito de Salida</h2>
-            <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                        <tr>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Producto</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">N° Lote</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Condición</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cantidad</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acción</th>
-                        </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                        {cartItems.map(({ lot, quantity }) => {
-                          const lotKey = getLotKey(lot);
-                          return (
-                            <tr key={lotKey}>
-                                <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{lot.maestro_producto_nombre}</td>
-                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{lot.numero_lote}</td>
-                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">
-                                  <Badge variant={lot.condicion_lote === 'Bueno' ? 'default' : 'destructive'}>{lot.condicion_lote}</Badge>
-                                </td>
-                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{quantity}</td>
-                                <td className="px-4 py-4 whitespace-nowrap">
-                                    <Button type="button" variant="ghost" size="sm" onClick={() => handleRemoveFromCart(lotKey)} className="text-red-600 hover:text-red-800">
-                                        <Trash2 className="w-4 h-4"/>
-                                    </Button>
-                                </td>
-                            </tr>
-                          )
-                        })}
-                    </tbody>
-                </table>
+          <h2 className="text-2xl font-bold text-gray-900">Carrito de Salida</h2>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Producto</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">N° Lote</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Condición</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cantidad</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acción</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {cartItems.map(({ lot, quantity }) => {
+                  const lotKey = getLotKey(lot);
+                  return (
+                    <tr key={lotKey}>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900 capitalize">{lot.maestro_producto_nombre}</td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{lot.numero_lote}</td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 capitalize">
+                        <Badge variant={getConditionVariant(lot.condicion_lote)}>
+                          {lot.condicion_lote?.toLowerCase()}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{quantity}</td>
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <Button type="button" variant="secondary" size="sm" onClick={() => handleRemoveFromCart(lotKey)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          <form onSubmit={handleSubmit} className="pt-6 border-t border-gray-200 space-y-4">
+            <Input
+              label="Motivo o Destinatario General de la Salida"
+              name="motivo"
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              placeholder="Ej: Insumos para Pabellón 1, Despacho a Bodega Central, etc."
+              required
+            />
+            <div className="flex justify-end">
+              <Button type="submit" isLoading={loading} disabled={loading}>
+                Registrar Salida Masiva
+              </Button>
             </div>
-            <form onSubmit={handleSubmit} className="pt-6 border-t border-gray-200 space-y-4">
-                <Input
-                    label="Motivo o Destinatario General de la Salida"
-                    name="motivo"
-                    value={motivo}
-                    onChange={(e) => setMotivo(e.target.value)}
-                    placeholder="Ej: Insumos para Pabellón 1, Despacho a Bodega Central, etc."
-                    required
-                />
-                <div className="flex justify-end">
-                    <Button type="submit" isLoading={loading} disabled={loading}>
-                        Registrar Salida Masiva
-                    </Button>
-                </div>
-            </form>
+          </form>
         </Card>
-      )}
-    </div>
+      )
+      }
+      {/* SECCIÓN 3: HISTORIAL DE SALIDAS RECIENTES */}
+      <div className="mt-8">
+        <h2 className="text-xl font-bold text-gray-900 mb-4">Historial de Salidas Recientes</h2>
+        <RecentExitsTable key={refreshTrigger} />
+      </div>
+    </div >
+  );
+}
+
+// Shared helper for condition colors
+const getConditionVariant = (condition: string) => {
+  if (!condition) return 'default';
+  switch (condition.toLowerCase()) {
+    case 'bueno': return 'success';
+    case 'nuevo': return 'success';
+    case 'cuarentena': return 'warning';
+    case 'regular': return 'warning';
+    case 'vencido': return 'danger';
+    case 'dañado': return 'danger';
+    case 'malo': return 'danger';
+    default: return 'default';
+  }
+};
+
+function RecentExitsTable() {
+  const [movements, setMovements] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchRecentExits();
+  }, []);
+
+  const fetchRecentExits = async () => {
+    try {
+      setLoading(true);
+      const today = new Date();
+      const thirtyDaysAgo = subDays(today, 30);
+
+      const { data, error } = await supabase.rpc('get_movement_history', {
+        start_date: thirtyDaysAgo.toISOString(),
+        end_date: today.toISOString(),
+        user_ids: null,
+        movement_type: 'salida',
+        search_term: null
+      });
+
+      if (error) {
+        console.error('Error fetching history:', error);
+      }
+
+      if (data) {
+        setMovements(data.slice(0, 5));
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) return <p className="text-gray-500 text-sm">Cargando salidas recientes...</p>;
+  if (movements.length === 0) return <p className="text-gray-500 text-sm">No hay salidas registradas en los últimos 30 días.</p>;
+
+  const getConditionVariant = (condition: string) => {
+    if (!condition) return 'default';
+    switch (condition.toLowerCase()) {
+      case 'bueno': return 'success';
+      case 'nuevo': return 'success';
+      case 'cuarentena': return 'warning';
+      case 'regular': return 'warning';
+      case 'vencido': return 'danger';
+      case 'dañado': return 'danger';
+      case 'malo': return 'danger';
+      default: return 'default';
+    }
+  };
+
+  return (
+    <Card>
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Producto</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Condición</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cantidad</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Motivo</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Usuario</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {movements.map((m, idx) => (
+              <tr key={idx}>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {format(new Date(m.fecha), 'dd/MM/yyyy HH:mm')}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium capitalize">
+                  {m.producto_nombre} <span className="text-xs text-gray-500 normal-case">({m.numero_lote})</span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm capitalize">
+                  <Badge variant={getConditionVariant(m.condicion)}>
+                    {m.condicion?.toLowerCase() || 'N/A'}
+                  </Badge>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {m.cantidad}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">
+                  {m.motivo}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {m.usuario_nombre || 'Sistema'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
   );
 }

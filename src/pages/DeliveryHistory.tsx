@@ -9,6 +9,7 @@ import { Entrega, User } from '../types';
 import * as XLSX from 'xlsx';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 const INITIAL_FILTERS = {
   fechaDesde: '',
@@ -26,6 +27,7 @@ export default function DeliveryHistory() {
     const fetchUsers = async () => {
       const { data, error } = await supabase.from('users').select('id, name');
       if (error) console.error('Error fetching users:', error);
+      // @ts-ignore - Partial user data is sufficient for filter display
       else setAllUsers(data || []);
     };
     fetchUsers();
@@ -63,7 +65,7 @@ export default function DeliveryHistory() {
     }
     const dataToExport = deliveries.map(d => ({
       'Fecha Registro': format(new Date(d.created_at), 'dd/MM/yyyy HH:mm'),
-      'Mes Entrega': new Date(d.mes_entrega).toLocaleString('es-ES', { month: 'long' }),
+      'Mes Entrega': format(new Date(d.mes_entrega), 'MMMM yyyy', { locale: es }),
       'RUT Paciente': d.pacientes?.rut,
       'Nombre Paciente': d.pacientes?.nombre,
       'Medicamentos': d.entregas_items.map(item => `${item.cantidad} x ${item.maestro_productos.nombre}`).join(', '),
@@ -84,18 +86,32 @@ export default function DeliveryHistory() {
       <Card className="p-6">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold text-gray-800">Historial de Entregas</h2>
-          <Button onClick={handleExport} variant="outline">
+          <Button onClick={handleExport} variant="secondary">
             <Download className="w-4 h-4 mr-2" />
             Exportar a Excel
           </Button>
         </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4 p-4 border rounded-lg">
-          <Input type="date" name="fechaDesde" value={filters.fechaDesde} onChange={handleFilterChange} />
-          <Input type="date" name="fechaHasta" value={filters.fechaHasta} onChange={handleFilterChange} />
-          <Input type="text" name="rut" placeholder="Filtrar por RUT..." value={filters.rut} onChange={handleFilterChange} />
-          <Select name="usuarioId" value={filters.usuarioId} onChange={handleFilterChange} options={[{ value: '', label: 'Todos los Usuarios' }, ...allUsers.map(u => ({ value: u.id, label: u.name }))]} />
-          <Button onClick={clearFilters} variant="destructive" className="lg:col-span-4">Limpiar Filtros</Button>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4 p-4 border rounded-lg items-end">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Fecha Desde</label>
+            <Input type="date" name="fechaDesde" value={filters.fechaDesde} onChange={handleFilterChange} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Fecha Hasta</label>
+            <Input type="date" name="fechaHasta" value={filters.fechaHasta} onChange={handleFilterChange} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">RUT Paciente</label>
+            <Input type="text" name="rut" placeholder="Ej: 12.345.678-9" value={filters.rut} onChange={handleFilterChange} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Usuario</label>
+            <Select name="usuarioId" value={filters.usuarioId} onChange={handleFilterChange} options={[{ value: '', label: 'Todos los Usuarios' }, ...allUsers.map(u => ({ value: u.id, label: u.name }))]} />
+          </div>
+          <div className="lg:col-span-4 flex justify-end">
+            <Button onClick={clearFilters} variant="secondary">Limpiar Filtros</Button>
+          </div>
         </div>
 
         {deliveries.length === 0 ? (
@@ -120,7 +136,9 @@ export default function DeliveryHistory() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{delivery.created_at.substring(8, 10)}-{delivery.created_at.substring(5, 7)}-{delivery.created_at.substring(0, 4)}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{delivery.pacientes?.nombre || 'N/A'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{delivery.pacientes?.rut || 'N/A'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{months.find(m => m.value === delivery.mes_entrega.substring(5, 7))?.label || delivery.mes_entrega}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 capitalize">
+                      {format(new Date(delivery.mes_entrega), 'MMMM yyyy', { locale: es })}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       <ul className="list-disc list-inside">
                         {delivery.entregas_items.map((item, index) => (

@@ -20,12 +20,15 @@ interface BulkProductEntry {
   fecha_vencimiento: string;
   condicion: 'bueno' | 'cuarentena';
   observaciones: string;
+  categoria?: string; // Display name (legacy or fallback)
+  categoria_id?: string; // For filtering
 }
 
 export default function Entries() {
   const [loading, setLoading] = useState(false);
-  const [entryMode, setEntryMode] = useState<EntryMode>('existing');
-  
+  // Default to 'bulk' (Ingreso de Mercancía) as requested
+  const [entryMode, setEntryMode] = useState<EntryMode>('bulk');
+
   // Estado para el formulario de stock existente
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProductId, setSelectedProductId] = useState('');
@@ -63,6 +66,9 @@ export default function Entries() {
   const canAddNew = user?.role === 'admin' || user?.role === 'bodega';
   const canAddBulk = user?.role === 'admin' || user?.role === 'bodega';
 
+  // Fetch categories state
+  const [categories, setCategories] = useState<{ id: string, nombre: string }[]>([]);
+
   useEffect(() => {
     if (entryMode === 'existing') {
       resetFormData();
@@ -73,13 +79,30 @@ export default function Entries() {
       resetBulkEntryForm();
       fetchMasterProducts();
       fetchProviders();
+      fetchCategories();
     } else if (entryMode === 'bulk') {
       resetFormData();
       resetExistingStockForm();
       fetchMasterProducts();
       fetchProviders();
+      fetchCategories();
     }
   }, [entryMode]);
+
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('categorias')
+        .select('id, nombre')
+        .eq('active', true)
+        .order('nombre', { ascending: true });
+
+      if (error) throw error;
+      setCategories(data || []);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  }
 
   const fetchProducts = async () => {
     try {
@@ -99,7 +122,7 @@ export default function Entries() {
     try {
       const { data, error } = await supabase
         .from('maestro_productos')
-        .select('*')
+        .select('*, categorias(id, nombre)')
         .order('nombre', { ascending: true });
 
       if (error) throw error;
@@ -131,7 +154,7 @@ export default function Entries() {
         setFormData(prev => ({
           ...prev,
           maestro_producto_id: value,
-          categoria: selectedMasterProduct.categoria,
+          categoria: selectedMasterProduct.categorias?.nombre || '',
           stock_critico: selectedMasterProduct.stock_critico,
         }));
       } else {
@@ -149,10 +172,34 @@ export default function Entries() {
 
   const handleProductLineChange = (index: number, e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
+    // Don't mutate state directly
     const newProducts = [...bulkEntryData.products];
-    newProducts[index] = { ...newProducts[index], [name]: value };
+    const updatedProduct = { ...newProducts[index], [name]: value };
+
+    // Handle Category change: reset product and update category_id
+    if (name === 'categoria_id') {
+      updatedProduct.maestro_producto_id = ''; // Reset product when category changes
+      updatedProduct.categoria = ''; // Reset display category name (will be updated when product is selected or we can look it up now)
+      updatedProduct.categoria_id = value; // Update the category_id
+    }
+
+    // Auto-populate category display if master product changes (though now we select category first, this keeps consistency)
+    if (name === 'maestro_producto_id') {
+      const selectedMaster = masterProducts.find(mp => mp.id === value);
+      if (selectedMaster) {
+        updatedProduct.categoria = selectedMaster.categorias?.nombre || '';
+        updatedProduct.categoria_id = selectedMaster.categorias?.id || updatedProduct.categoria_id; // Sync id just in case
+      }
+    }
+
+    newProducts[index] = updatedProduct;
     setBulkEntryData(prev => ({ ...prev, products: newProducts }));
   };
+
+  // Helper to get unique categories from loaded products
+  const availableCategories = React.useMemo(() => {
+    return categories.map(c => ({ value: c.id, label: c.nombre }));
+  }, [categories]);
 
   const addProductLine = () => {
     setBulkEntryData(prev => ({
@@ -166,6 +213,7 @@ export default function Entries() {
           fecha_vencimiento: '',
           condicion: 'bueno',
           observaciones: '',
+          categoria_id: '',
         },
       ],
     }));
@@ -423,25 +471,18 @@ export default function Entries() {
       </div>
 
       <div className="mb-6 flex space-x-2 rounded-lg bg-gray-200 p-1">
-        <button 
-          onClick={() => setEntryMode('existing')} 
+        {canAddBulk && (
+          <button
+            onClick={() => setEntryMode('bulk')}
+            className={`w-full rounded-md px-3 py-2 text-sm font-medium ${entryMode === 'bulk' ? 'bg-white text-gray-900 shadow' : 'text-gray-600 hover:bg-white/50'}`}>
+            Ingreso de Mercancía
+          </button>
+        )}
+        <button
+          onClick={() => setEntryMode('existing')}
           className={`w-full rounded-md px-3 py-2 text-sm font-medium ${entryMode === 'existing' ? 'bg-white text-gray-900 shadow' : 'text-gray-600 hover:bg-white/50'}`}>
           Añadir a Stock Existente
         </button>
-        {canAddNew && (
-          <button 
-            onClick={() => setEntryMode('new')} 
-            className={`w-full rounded-md px-3 py-2 text-sm font-medium ${entryMode === 'new' ? 'bg-white text-gray-900 shadow' : 'text-gray-600 hover:bg-white/50'}`}>
-            Registrar Nuevo Producto
-          </button>
-        )}
-        {canAddBulk && (
-          <button 
-            onClick={() => setEntryMode('bulk')} 
-            className={`w-full rounded-md px-3 py-2 text-sm font-medium ${entryMode === 'bulk' ? 'bg-white text-gray-900 shadow' : 'text-gray-600 hover:bg-white/50'}`}>
-            Entrada Masiva
-          </button>
-        )}
       </div>
 
       <Card>
@@ -465,43 +506,67 @@ export default function Entries() {
               <h3 className="text-lg font-medium">Registrar Nuevo Producto</h3>
               {!canAddNew && <p className="text-red-500">No tienes permiso.</p>}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Select label="Producto del Catálogo" name="maestro_producto_id" options={masterProducts.map(p => ({ value: p.id, label: p.nombre }))} value={formData.maestro_producto_id} onChange={handleFormChange} required disabled={!canAddNew || loading} />
-                <div className="flex items-end space-x-2">
-                  <Select label="Proveedor" name="proveedor_id" options={providers.map(p => ({ value: p.id, label: p.nombre }))} value={formData.proveedor_id} onChange={handleFormChange} required disabled={!canAddNew || loading} className="flex-grow" />
-                  <Button type="button" onClick={() => setShowProviderModal(true)} className="h-10"><Plus className="w-4 h-4"/></Button>
+                <Select label="Producto del Catálogo (Obligatorio)" name="maestro_producto_id" options={masterProducts.map(p => ({ value: p.id, label: p.nombre }))} value={formData.maestro_producto_id} onChange={handleFormChange} required disabled={!canAddNew || loading} />
+                <div className="flex flex-col justify-end">
+                  <div className="flex items-end space-x-2">
+                    <Select label="Proveedor (Obligatorio)" name="proveedor_id" options={providers.map(p => ({ value: p.id, label: p.nombre }))} value={formData.proveedor_id} onChange={handleFormChange} required disabled={!canAddNew || loading} className="flex-grow" />
+                  </div>
+                  <div className="text-right mt-1">
+                    <button type="button" onClick={() => setShowProviderModal(true)} className="text-sm text-blue-600 hover:text-blue-800 underline">Crear Nuevo Proveedor</button>
+                  </div>
                 </div>
-                <Input label="N° Lote" name="numero_lote" value={formData.numero_lote} onChange={handleFormChange} required disabled={!canAddNew || loading} />
-                <Input label="Fecha de Vencimiento" name="fecha_vencimiento" type="date" value={formData.fecha_vencimiento} onChange={handleFormChange} required disabled={!canAddNew || loading} />
-                <Input label="Cantidad Inicial" name="stock_actual" type="number" min={1} value={formData.stock_actual} onChange={handleFormChange} required disabled={!canAddNew || loading} />
-                <Input label="Stock Crítico" name="stock_critico" type="number" value={formData.stock_critico} readOnly disabled={true} />
-                <Select label="Categoría" name="categoria" options={[{value: 'otros', label: 'Otros'}, {value: 'medicamentos', label: 'Medicamentos'}]} value={formData.categoria} readOnly disabled={true} />
-                <Select label="Condición" name="condicion" options={[{value: 'bueno', label: 'Bueno'}, {value: 'cuarentena', label: 'Cuarentena'}]} value={formData.condicion} onChange={handleFormChange} required disabled={!canAddNew || loading} />
+                <Input label="N° Lote (Obligatorio)" name="numero_lote" value={formData.numero_lote} onChange={handleFormChange} required disabled={!canAddNew || loading} />
+                <Input label="Fecha de Vencimiento (Obligatorio)" name="fecha_vencimiento" type="date" value={formData.fecha_vencimiento} onChange={handleFormChange} required disabled={!canAddNew || loading} />
+                <Input label="Cantidad Inicial (Obligatorio)" name="stock_actual" type="number" min={1} value={formData.stock_actual} onChange={handleFormChange} required disabled={!canAddNew || loading} />
+
+                <div>
+                  <Input label="Stock Crítico" name="stock_critico" type="number" value={formData.stock_critico} readOnly disabled={true} className="bg-gray-100" />
+                  <p className="text-xs text-gray-500 mt-1">Información precargada del maestro.</p>
+                </div>
+                <div>
+                  <Input label="Categoría" name="categoria" value={formData.categoria} readOnly disabled={true} className="bg-gray-100 capitalize" />
+                  <p className="text-xs text-gray-500 mt-1">Información precargada del maestro.</p>
+                </div>
+
+                <Select label="Condición (Obligatorio)" name="condicion" options={[{ value: 'bueno', label: 'Bueno' }, { value: 'cuarentena', label: 'Cuarentena' }]} value={formData.condicion} onChange={handleFormChange} required disabled={!canAddNew || loading} />
               </div>
               <textarea name="observaciones" value={formData.observaciones} onChange={handleFormChange} placeholder="Observaciones..." className="w-full border rounded px-3 py-2" disabled={!canAddNew || loading} />
-              <Input label="Número de Guía" name="numero_guia" value={formData.numero_guia} onChange={handleFormChange} disabled={!canAddNew || loading} />
+              <Input label="Número de Guía (Opcional)" name="numero_guia" value={formData.numero_guia} onChange={handleFormChange} disabled={!canAddNew || loading} />
             </div>
           ) : entryMode === 'bulk' ? (
             <div className="space-y-4">
-              <h3 className="text-lg font-medium">Registrar Entrada Masiva</h3>
+              <h3 className="text-lg font-medium">Ingreso de Mercancía (Masivo)</h3>
               {!canAddBulk && <p className="text-red-500">No tienes permiso.</p>}
+              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded mb-4">
+                <p className="text-sm text-yellow-800 font-medium">⚠️ El número de guía es obligatorio para ingresos masivos.</p>
+              </div>
               <Input
-                label="Número de Guía"
+                label="Número de Guía (Obligatorio)"
                 name="numero_guia"
                 value={bulkEntryData.numero_guia}
                 onChange={handleBulkEntryChange}
                 required
                 disabled={loading}
+                className="border-2 border-blue-200"
               />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Select
-                  label="Proveedor"
-                  name="proveedor_id"
-                  options={providers.map(p => ({ value: p.id, label: p.nombre }))}
-                  value={bulkEntryData.proveedor_id}
-                  onChange={handleBulkEntryChange}
-                  required
-                  disabled={loading}
-                />
+                <div className="flex items-end gap-2">
+                  <div className="flex-grow">
+                    <Select
+                      label="Proveedor"
+                      name="proveedor_id"
+                      options={providers.map(p => ({ value: p.id, label: p.nombre }))}
+                      value={bulkEntryData.proveedor_id}
+                      onChange={handleBulkEntryChange}
+                      required
+                      disabled={loading}
+                    />
+                  </div>
+                  <Button type="button" onClick={() => setShowProviderModal(true)} variant="secondary" className="mb-[2px] whitespace-nowrap">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Crear Nuevo Proveedor
+                  </Button>
+                </div>
               </div>
 
               <h3 className="text-lg font-medium mt-6">Productos a Ingresar</h3>
@@ -509,13 +574,14 @@ export default function Entries() {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Producto</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cantidad</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° Lote</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha Venc.</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Condición</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Observaciones</th>
-                      <th scope="col" className="relative px-6 py-3"><span className="sr-only">Eliminar</span></th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-40">Categoría</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[200px]">Producto</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">Cant.</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">Lote</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">Vencimiento</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">Condición</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Obs.</th>
+                      <th scope="col" className="relative px-6 py-3 w-10"><span className="sr-only">Eliminar</span></th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -523,8 +589,34 @@ export default function Entries() {
                       <tr key={index}>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <Select
+                            name="categoria_id"
+                            options={availableCategories}
+                            value={product.categoria_id || ''}
+                            onChange={(e) => handleProductLineChange(index, e)}
+                            required
+                            disabled={loading}
+                            className="w-full text-xs"
+                          />
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <Select
                             name="maestro_producto_id"
-                            options={masterProducts.map(p => ({ value: p.id, label: p.nombre }))}
+                            options={masterProducts
+                              .filter(mp => {
+                                if (!product.categoria_id) return true;
+                                const directMatch = mp.categoria_id === product.categoria_id;
+                                let joinedMatch = false;
+                                if (mp.categorias) {
+                                  if (Array.isArray(mp.categorias)) {
+                                    joinedMatch = mp.categorias[0]?.id === product.categoria_id;
+                                  } else {
+                                    // @ts-ignore
+                                    joinedMatch = mp.categorias.id === product.categoria_id;
+                                  }
+                                }
+                                return directMatch || joinedMatch;
+                              })
+                              .map(p => ({ value: p.id, label: p.nombre }))}
                             value={product.maestro_producto_id}
                             onChange={(e) => handleProductLineChange(index, e)}
                             required
@@ -584,7 +676,7 @@ export default function Entries() {
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <Button
                             type="button"
-                            variant="ghost"
+                            variant="secondary"
                             onClick={() => removeProductLine(index)}
                             className="text-red-500 hover:text-red-700"
                             disabled={loading}
@@ -598,14 +690,14 @@ export default function Entries() {
                 </table>
               </div>
 
-              <Button type="button" onClick={addProductLine} variant="outline" className="w-full mt-4" disabled={loading}>
+              <Button type="button" onClick={addProductLine} variant="secondary" className="w-full mt-4" disabled={loading}>
                 <Plus className="w-4 h-4 mr-2" /> Añadir Fila
               </Button>
             </div>
           ) : null}
           <div className="flex justify-end">
-            <Button type="submit" isLoading={loading} disabled={loading || (entryMode === 'existing' && (!canAddExisting || !selectedProductId || quantity <= 0)) || (entryMode === 'new' && (!canAddNew || !formData.maestro_producto_id || !formData.proveedor_id)) || (entryMode === 'bulk' && (!canAddBulk || !bulkEntryData.proveedor_id || !bulkEntryData.numero_guia || bulkEntryData.products.length === 0))}>
-              {entryMode === 'existing' ? 'Añadir Stock' : entryMode === 'new' ? 'Registrar Nuevo Producto' : 'Registrar Entrada Masiva'}
+            <Button type="submit" isLoading={loading} disabled={loading || (entryMode === 'existing' && (!canAddExisting || !selectedProductId || quantity <= 0)) || (entryMode === 'bulk' && (!canAddBulk || !bulkEntryData.proveedor_id || !bulkEntryData.numero_guia || bulkEntryData.products.length === 0))}>
+              {entryMode === 'existing' ? 'Añadir Stock' : 'Registrar Ingreso'}
             </Button>
           </div>
         </form>
@@ -640,9 +732,9 @@ function ProviderModal({ isOpen, onClose, onProviderCreated }: { isOpen: boolean
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Crear Nuevo Proveedor">
       <form onSubmit={handleSubmit} className="space-y-4">
-        <Input label="Nombre del Proveedor" name="nombre" value={formData.nombre} onChange={(e) => setFormData(p => ({...p, nombre: e.target.value}))} required />
-        <Input label="Dirección" name="direccion" value={formData.direccion} onChange={(e) => setFormData(p => ({...p, direccion: e.target.value}))} />
-        <Select label="Clasificación" name="clasificacion" options={[{ value: 'medicamentos', label: 'Medicamentos' }, { value: 'insumos_generales', label: 'Insumos Generales' }, { value: 'equipamiento', label: 'Equipamiento' }, { value: 'servicios', label: 'Servicios' }, { value: 'otros', label: 'Otros' }]} value={formData.clasificacion} onChange={(e) => setFormData(p => ({...p, clasificacion: e.target.value}))} required />
+        <Input label="Nombre del Proveedor" name="nombre" value={formData.nombre} onChange={(e) => setFormData(p => ({ ...p, nombre: e.target.value }))} required />
+        <Input label="Dirección" name="direccion" value={formData.direccion} onChange={(e) => setFormData(p => ({ ...p, direccion: e.target.value }))} />
+        <Select label="Clasificación" name="clasificacion" options={[{ value: 'medicamentos', label: 'Medicamentos' }, { value: 'insumos_generales', label: 'Insumos Generales' }, { value: 'equipamiento', label: 'Equipamiento' }, { value: 'servicios', label: 'Servicios' }, { value: 'otros', label: 'Otros' }]} value={formData.clasificacion} onChange={(e) => setFormData(p => ({ ...p, clasificacion: e.target.value }))} required />
         <div className="flex justify-end space-x-3 pt-4">
           <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
           <Button type="submit" isLoading={loading}>Crear Proveedor</Button>

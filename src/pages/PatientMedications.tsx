@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
@@ -13,6 +15,34 @@ export default function PatientMedications() {
   const { user } = useAuth();
   const submissionLock = useRef(false);
 
+  // Helper para formatear RUT
+  const formatRut = (value: string) => {
+    // Eliminar puntos y guiones para trabajar con los datos limpios
+    const cleanValue = value.replace(/[^0-9kK]/g, '');
+    if (!cleanValue) return '';
+
+    // Si es corto, devolver tal cual
+    if (cleanValue.length <= 1) return cleanValue;
+
+    // Separar cuerpo y dígito verificador
+    const cuerpo = cleanValue.slice(0, -1);
+    const dv = cleanValue.slice(-1);
+
+    // Formatear cuerpo con puntos
+    const cuerpoFormateado = cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+
+    return `${cuerpoFormateado}-${dv}`;
+  };
+
+  const handleRutChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value;
+    // Si el usuario está borrando, permitimos borrar libremente limpiando todo formato
+    // Pero si está escribiendo, aplicamos formato
+    // Simple approach: siempre formatear el valor limpio
+    const formatted = formatRut(rawValue);
+    setRut(formatted);
+  };
+
   // Form state
   const [rut, setRut] = useState('');
   const [patientName, setPatientName] = useState('');
@@ -21,12 +51,20 @@ export default function PatientMedications() {
   const [medications, setMedications] = useState([{ maestro_producto_id: '', quantity: '' }]);
   const [isPatientNameEditable, setIsPatientNameEditable] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   // Data state
   const [todaysDeliveries, setTodaysDeliveries] = useState<Entrega[]>([]);
   const [masterProducts, setMasterProducts] = useState<{ id: string; nombre: string }[]>([]);
 
   const lookupPatient = async (searchRut: string) => {
+    // Buscar por RUT exacto (tal cual está formateado en el input, asumiendo que en BD se guarda formateado o se deberá limpiar)
+    // Para mayor robustez, idealmente buscaríamos por rut limpio, pero asumiendo convención actual:
+
+    // Limpiamos el RUT para la búsqueda si en la base de datos se guarda limpio, 
+    // O lo buscamos formateado si se guarda formateado.
+    // Dado que el código anterior reemplazaba todo lo que no fuera numérico, asumía guardado "limpio" o semi-limpio.
+    // Pero el requerimiento es "formato automático".
+    // Asumiremos que vamos a estandarizar a formato con puntos y guion.
     const { data, error } = await supabase.from('pacientes').select('*').eq('rut', searchRut).single();
     if (error && error.code !== 'PGRST116') {
       console.error('Error looking up patient:', error);
@@ -60,10 +98,11 @@ export default function PatientMedications() {
 
   useEffect(() => {
     const fetchInitialData = async () => {
-      const { data, error } = await supabase.from('maestro_productos').select('id, nombre').eq('categoria', 'medicamentos');
+      // Changed to use inner join to filter by category name from related table
+      const { data, error } = await supabase.from('maestro_productos').select('id, nombre, categorias!inner(nombre)').eq('categorias.nombre', 'medicamentos');
       if (error) console.error('Error fetching master products:', error);
       else setMasterProducts(data || []);
-      
+
       fetchTodaysDeliveries();
     };
     fetchInitialData();
@@ -105,7 +144,7 @@ export default function PatientMedications() {
 
       const { data: newDelivery, error: deliveryError } = await supabase
         .from('entregas')
-        .insert([{ paciente_id: patientId, mes_entrega: `${new Date().getFullYear()}-${deliveryMonth}-01`, indicaciones_medicas: medicalIndications, usuario_id: user.id }])
+        .insert([{ paciente_id: patientId, mes_entrega: `${deliveryMonth}-01`, indicaciones_medicas: medicalIndications, usuario_id: user.id }])
         .select('id, created_at, mes_entrega, indicaciones_medicas')
         .single();
 
@@ -114,8 +153,10 @@ export default function PatientMedications() {
       const selectedProductIds = medications.map(m => m.maestro_producto_id).filter(id => id);
       if (selectedProductIds.length === 0) { throw new Error('Añada al menos un medicamento.'); }
 
-      const { data: existingProducts, error: validationError } = await supabase.from('maestro_productos').select('id').in('id', selectedProductIds).eq('categoria', 'medicamentos');
-      if (validationError || existingProducts.length !== selectedProductIds.length) { throw new Error('Uno o más productos seleccionados no son válidos.'); }
+      // Validar que sean medicamentos
+      // Use inner join filter for validation as well
+      const { data: existingProducts, error: validationError } = await supabase.from('maestro_productos').select('id, categorias!inner(nombre)').in('id', selectedProductIds).eq('categorias.nombre', 'medicamentos');
+      if (validationError || existingProducts.length !== selectedProductIds.length) { throw new Error('Uno o más productos seleccionados no son válidos (no son medicamentos).'); }
 
       const deliveryItemsToInsert = medications
         .filter(m => m.maestro_producto_id && m.quantity)
@@ -138,7 +179,7 @@ export default function PatientMedications() {
         }))
       };
       setTodaysDeliveries(prev => [newDeliveryForState, ...prev]);
-      
+
       toast.success('Entrega registrada exitosamente!');
       setRut('');
       setPatientName('');
@@ -155,7 +196,6 @@ export default function PatientMedications() {
     }
   };
 
-  const months = Array.from({ length: 12 }, (_, i) => ({ value: (i + 1).toString().padStart(2, '0'), label: new Date(0, i).toLocaleString('es-ES', { month: 'long' }) }));
 
   return (
     <div>
@@ -169,11 +209,11 @@ export default function PatientMedications() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="deliveryMonth" className="block text-sm font-medium text-gray-700 mb-1">Mes de Entrega</label>
-            <Select id="deliveryMonth" value={deliveryMonth} onChange={(e) => setDeliveryMonth(e.target.value)} options={months} placeholder="Seleccione el mes" />
+            <Input id="deliveryMonth" type="month" value={deliveryMonth} onChange={(e) => setDeliveryMonth(e.target.value)} placeholder="Seleccione mes y año" required />
           </div>
           <div>
-            <label htmlFor="rut" className="block text-sm font-medium text-gray-700 mb-1">RUT Paciente (sin guion)</label>
-            <Input id="rut" type="text" value={rut} onChange={(e) => setRut(e.target.value.replace(/[^0-9Kk]/g, ''))} placeholder="Ej: 123456789" className="w-full" />
+            <label htmlFor="rut" className="block text-sm font-medium text-gray-700 mb-1">RUT Paciente (ej: 12.345.678-9)</label>
+            <Input id="rut" type="text" value={rut} onChange={handleRutChange} placeholder="12.345.678-9" className="w-full" maxLength={12} />
           </div>
           <div>
             <label htmlFor="patientName" className="block text-sm font-medium text-gray-700 mb-1">Nombre Paciente</label>
@@ -196,11 +236,11 @@ export default function PatientMedications() {
                   <Input id={`quantity-${index}`} type="number" value={med.quantity} onChange={(e) => handleMedicationChange(index, 'quantity', e.target.value)} placeholder="Cantidad" className="w-24" />
                 </div>
                 {medications.length > 1 && (
-                  <Button type="button" onClick={() => handleRemoveMedication(index)} variant="ghost" className="p-2"><Trash2 className="h-5 w-5 text-red-500" /></Button>
+                  <Button type="button" onClick={() => handleRemoveMedication(index)} variant="secondary" className="p-2"><Trash2 className="h-5 w-5 text-red-500" /></Button>
                 )}
               </div>
             ))}
-            <Button type="button" onClick={handleAddMedication} variant="outline" className="mt-2"><Plus className="h-4 w-4 mr-2" /> Añadir Medicamento</Button>
+            <Button type="button" onClick={handleAddMedication} variant="secondary" className="mt-2"><Plus className="h-4 w-4 mr-2" /> Añadir Medicamento</Button>
           </div>
           <Button type="submit" disabled={isSubmitting} className="w-full">
             {isSubmitting ? 'Registrando...' : 'Registrar Entrega'}
@@ -232,7 +272,7 @@ export default function PatientMedications() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{delivery.created_at.substring(8, 10)}-{delivery.created_at.substring(5, 7)}-{delivery.created_at.substring(0, 4)}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{delivery.pacientes?.nombre || 'N/A'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{delivery.pacientes?.rut || 'N/A'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{months.find(m => m.value === delivery.mes_entrega.substring(5, 7))?.label || delivery.mes_entrega}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 capitalize">{delivery.mes_entrega ? format(new Date(delivery.mes_entrega), 'MMMM yyyy', { locale: es }) : 'N/A'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       <ul className="list-disc list-inside">
                         {delivery.entregas_items.map((item, index) => (

@@ -22,7 +22,8 @@ export function CategoryChart({ data }: CategoryChartProps) {
               outerRadius={80}
               fill="#8884d8"
               dataKey="count"
-              label={({ category, percent }) => 
+              nameKey="category"
+              label={({ category, percent }) =>
                 `${category} ${(percent * 100).toFixed(0)}%`
               }
             >
@@ -30,7 +31,7 @@ export function CategoryChart({ data }: CategoryChartProps) {
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
               ))}
             </Pie>
-            <Tooltip formatter={(value, name) => [value, 'Productos']} />
+            <Tooltip formatter={(value, name) => [value, 'Cantidad']} />
             <Legend />
           </PieChart>
         </ResponsiveContainer>

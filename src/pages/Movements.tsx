@@ -118,9 +118,24 @@ export function Movements() {
     toast.success('Exportación a Excel completada.');
   };
 
+  const getConditionVariant = (condition: string) => {
+    if (!condition) return 'default';
+    switch (condition.toLowerCase()) {
+      case 'bueno': return 'success';
+      case 'nuevo': return 'success';
+      case 'cuarentena': return 'warning';
+      case 'regular': return 'warning';
+      case 'vencido': return 'danger';
+      case 'dañado': return 'danger';
+      case 'malo': return 'danger';
+      default: return 'default';
+    }
+  };
+
   return (
     <div>
       <div className="mb-8 flex justify-between items-center">
+        {/* ... (keep header content) ... */}
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Historial de Movimientos</h1>
           <p className="text-gray-600 mt-2">Filtra y explora todos los movimientos de inventario.</p>
@@ -131,6 +146,7 @@ export function Movements() {
         </Button>
       </div>
 
+      {/* ... (keep filters card) ... */}
       <Card className="p-6 mb-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Input
@@ -194,18 +210,18 @@ export function Movements() {
                 movements.map((mov, index) => (
                   <tr key={index}>
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{format(new Date(mov.fecha), 'dd/MM/yy HH:mm', { locale: es })}</td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{mov.producto_nombre}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900 capitalize">{mov.producto_nombre}</td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{mov.numero_lote}</td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{mov.proveedor_nombre}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 capitalize">{mov.proveedor_nombre}</td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm">
-                      <Badge variant={mov.tipo_movimiento === 'entrada' ? 'default' : 'info'}>{mov.tipo_movimiento}</Badge>
+                      <Badge variant={mov.tipo_movimiento === 'entrada' ? 'success' : 'info'}>{mov.tipo_movimiento === 'entrada' ? 'Entrada' : 'Salida'}</Badge>
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm font-semibold">{mov.cantidad}</td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm">
-                      <Badge variant={mov.condicion === 'Bueno' ? 'default' : 'danger'}>{mov.condicion}</Badge>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm capitalize">
+                      <Badge variant={getConditionVariant(mov.condicion)}>{mov.condicion?.toLowerCase()}</Badge>
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{mov.usuario_nombre}</td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{mov.motivo}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">{mov.motivo}</td>
                   </tr>
                 ))
               )}

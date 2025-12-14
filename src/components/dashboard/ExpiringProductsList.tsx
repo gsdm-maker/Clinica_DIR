@@ -5,6 +5,23 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Clock } from 'lucide-react';
 
+import { Badge } from '../ui/Badge';
+
+// Helper for condition colors
+const getConditionVariant = (condition: string) => {
+  if (!condition) return 'default';
+  switch (condition.toLowerCase()) {
+    case 'bueno': return 'success';
+    case 'nuevo': return 'success';
+    case 'cuarentena': return 'warning';
+    case 'regular': return 'warning';
+    case 'vencido': return 'danger';
+    case 'dañado': return 'danger';
+    case 'malo': return 'danger';
+    default: return 'default';
+  }
+};
+
 type ExpiringProduct = {
   producto_id: string;
   producto_nombre: string;
@@ -58,7 +75,7 @@ export function ExpiringProductsList({ daysThreshold, title }: ExpiringProductsL
         <Clock className="h-6 w-6 text-red-500 mr-2" />
         <h2 className="text-lg font-semibold text-gray-800">{title} ({products.length})</h2>
       </div>
-      
+
       {products.length === 0 ? (
         <p className="text-gray-600">No hay productos {title.toLowerCase()} actualmente.</p>
       ) : (
@@ -76,13 +93,15 @@ export function ExpiringProductsList({ daysThreshold, title }: ExpiringProductsL
             <tbody className="bg-white divide-y divide-gray-200">
               {products.map((product) => (
                 <tr key={product.producto_id}>
-                  <td className="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">{product.producto_nombre}</td>
+                  <td className="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900 capitalize">{product.producto_nombre}</td>
                   <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-700">{product.numero_lote}</td>
                   <td className="px-4 py-2 whitespace-nowrap text-sm text-red-600 font-semibold">{product.stock_actual}</td>
                   <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-700">
                     {product.fecha_vencimiento ? format(new Date(product.fecha_vencimiento), 'dd MMM yyyy', { locale: es }) : 'N/A'}
                   </td>
-                  <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-700">{product.condicion}</td>
+                  <td className="px-4 py-2 whitespace-nowrap text-sm capitalize">
+                    <Badge variant={getConditionVariant(product.condicion)}>{product.condicion}</Badge>
+                  </td>
                 </tr>
               ))}
             </tbody>
