@@ -121,33 +121,43 @@ export default function DeliveryHistory() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paciente</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">RUT</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mes Entrega</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Medicamentos Entregados</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Indicaciones</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registrado Por</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[150px]">Paciente</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">RUT</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Mes Entrega</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[250px]">Medicamentos Entregados</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[200px]">Indicaciones</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Registrado Por</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {deliveries.map((delivery) => (
                   <tr key={delivery.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{delivery.created_at.substring(8, 10)}-{delivery.created_at.substring(5, 7)}-{delivery.created_at.substring(0, 4)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{delivery.pacientes?.nombre || 'N/A'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{delivery.pacientes?.rut || 'N/A'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 capitalize">
+                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900 align-top">
+                      {delivery.created_at.substring(8, 10)}-{delivery.created_at.substring(5, 7)}-{delivery.created_at.substring(0, 4)}
+                    </td>
+                    <td className="px-3 py-4 text-sm text-gray-900 align-top">
+                      {delivery.pacientes?.nombre || 'N/A'}
+                    </td>
+                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900 align-top">
+                      {delivery.pacientes?.rut || 'N/A'}
+                    </td>
+                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900 capitalize align-top">
                       {format(new Date(delivery.mes_entrega), 'MMMM yyyy', { locale: es })}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <ul className="list-disc list-inside">
+                    <td className="px-3 py-4 text-sm text-gray-900 align-top">
+                      <ul className="list-disc list-inside space-y-1">
                         {delivery.entregas_items.map((item, index) => (
                           <li key={index}>{`${item.cantidad} x ${item.maestro_productos.nombre}`}</li>
                         ))}
                       </ul>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{delivery.indicaciones_medicas || 'Sin indicaciones'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{delivery.usuario?.name || 'N/A'}</td>
+                    <td className="px-3 py-4 text-sm text-gray-900 align-top">
+                      {delivery.indicaciones_medicas || 'Sin indicaciones'}
+                    </td>
+                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900 align-top">
+                      {delivery.usuario?.name || 'N/A'}
+                    </td>
                   </tr>
                 ))}
               </tbody>

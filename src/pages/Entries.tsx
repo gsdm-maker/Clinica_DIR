@@ -170,53 +170,72 @@ export default function Entries() {
     setBulkEntryData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleProductLineChange = (index: number, e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    // Don't mutate state directly
-    const newProducts = [...bulkEntryData.products];
-    const updatedProduct = { ...newProducts[index], [name]: value };
-
-    // Handle Category change: reset product and update category_id
-    if (name === 'categoria_id') {
-      updatedProduct.maestro_producto_id = ''; // Reset product when category changes
-      updatedProduct.categoria = ''; // Reset display category name (will be updated when product is selected or we can look it up now)
-      updatedProduct.categoria_id = value; // Update the category_id
-    }
-
-    // Auto-populate category display if master product changes (though now we select category first, this keeps consistency)
-    if (name === 'maestro_producto_id') {
-      const selectedMaster = masterProducts.find(mp => mp.id === value);
-      if (selectedMaster) {
-        updatedProduct.categoria = selectedMaster.categorias?.nombre || '';
-        updatedProduct.categoria_id = selectedMaster.categorias?.id || updatedProduct.categoria_id; // Sync id just in case
-      }
-    }
-
-    newProducts[index] = updatedProduct;
-    setBulkEntryData(prev => ({ ...prev, products: newProducts }));
-  };
+  const [tempProduct, setTempProduct] = useState<BulkProductEntry>({
+    maestro_producto_id: '',
+    cantidad: 1,
+    numero_lote: '',
+    fecha_vencimiento: '',
+    condicion: 'bueno',
+    observaciones: '',
+    categoria_id: '',
+  });
 
   // Helper to get unique categories from loaded products
   const availableCategories = React.useMemo(() => {
     return categories.map(c => ({ value: c.id, label: c.nombre }));
   }, [categories]);
 
-  const addProductLine = () => {
+  const handleTempProductChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setTempProduct(prev => {
+      const updated = { ...prev, [name]: value };
+
+      // Handle Category change
+      if (name === 'categoria_id') {
+        updated.maestro_producto_id = '';
+        updated.categoria = '';
+      }
+
+      // Handle Master Product change
+      if (name === 'maestro_producto_id') {
+        const selectedMaster = masterProducts.find(mp => mp.id === value);
+        if (selectedMaster) {
+          updated.categoria = selectedMaster.categorias?.nombre || '';
+          updated.categoria_id = selectedMaster.categorias?.id || updated.categoria_id;
+        }
+      }
+      return updated;
+    });
+  };
+
+  const addTempProductToList = () => {
+    if (!tempProduct.maestro_producto_id || !tempProduct.cantidad || !tempProduct.numero_lote || !tempProduct.fecha_vencimiento) {
+      toast.error('Completa los campos obligatorios del producto (Producto, Cantidad, Lote, Vencimiento).');
+      return;
+    }
+
+    // Check for duplicate lot in current list
+    const isDuplicate = bulkEntryData.products.some(p => p.numero_lote.toUpperCase() === tempProduct.numero_lote.toUpperCase());
+    if (isDuplicate) {
+      toast.error(`El lote ${tempProduct.numero_lote} ya está en la lista.`);
+      return;
+    }
+
     setBulkEntryData(prev => ({
       ...prev,
-      products: [
-        ...prev.products,
-        {
-          maestro_producto_id: '',
-          cantidad: 1,
-          numero_lote: '',
-          fecha_vencimiento: '',
-          condicion: 'bueno',
-          observaciones: '',
-          categoria_id: '',
-        },
-      ],
+      products: [...prev.products, { ...tempProduct }] // Add copy
     }));
+
+    // Reset temp form
+    setTempProduct({
+      maestro_producto_id: '',
+      cantidad: 1,
+      numero_lote: '',
+      fecha_vencimiento: '',
+      condicion: 'bueno',
+      observaciones: '',
+      categoria_id: '',
+    });
   };
 
   const removeProductLine = (index: number) => {
@@ -570,129 +589,149 @@ export default function Entries() {
               </div>
 
               <h3 className="text-lg font-medium mt-6">Productos a Ingresar</h3>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
+              <h3 className="text-lg font-medium mt-6 mb-4">Agregar Producto</h3>
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <Select
+                      label="Categoría"
+                      name="categoria_id"
+                      options={availableCategories}
+                      value={tempProduct.categoria_id || ''}
+                      onChange={handleTempProductChange}
+                      disabled={loading}
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Select
+                      label="Producto"
+                      name="maestro_producto_id"
+                      options={masterProducts
+                        .filter(mp => {
+                          if (!tempProduct.categoria_id) return true;
+                          const directMatch = mp.categoria_id === tempProduct.categoria_id;
+                          let joinedMatch = false;
+                          if (mp.categorias) {
+                            if (Array.isArray(mp.categorias)) {
+                              joinedMatch = mp.categorias[0]?.id === tempProduct.categoria_id;
+                            } else {
+                              // @ts-ignore
+                              joinedMatch = mp.categorias.id === tempProduct.categoria_id;
+                            }
+                          }
+                          return directMatch || joinedMatch;
+                        })
+                        .map(p => ({ value: p.id, label: p.nombre }))}
+                      value={tempProduct.maestro_producto_id}
+                      onChange={handleTempProductChange}
+                      disabled={loading}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <Input
+                    label="Cantidad"
+                    name="cantidad"
+                    type="number"
+                    min={1}
+                    value={tempProduct.cantidad}
+                    onChange={handleTempProductChange}
+                    disabled={loading}
+                  />
+                  <Input
+                    label="N° Lote"
+                    name="numero_lote"
+                    value={tempProduct.numero_lote}
+                    onChange={handleTempProductChange}
+                    disabled={loading}
+                  />
+                  <Input
+                    label="Vencimiento"
+                    name="fecha_vencimiento"
+                    type="date"
+                    value={tempProduct.fecha_vencimiento}
+                    onChange={handleTempProductChange}
+                    disabled={loading}
+                  />
+                  <Select
+                    label="Condición"
+                    name="condicion"
+                    options={[{ value: 'bueno', label: 'Bueno' }, { value: 'cuarentena', label: 'Cuarentena' }]}
+                    value={tempProduct.condicion}
+                    onChange={handleTempProductChange}
+                    disabled={loading}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Observaciones</label>
+                  <textarea
+                    name="observaciones"
+                    value={tempProduct.observaciones}
+                    onChange={handleTempProductChange}
+                    placeholder="Observaciones opcionales..."
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    disabled={loading}
+                    rows={2}
+                  />
+                </div>
+
+                <div className="flex justify-end">
+                  <Button type="button" onClick={addTempProductToList} disabled={loading} variant="secondary">
+                    <Plus className="w-4 h-4 mr-2" /> Agregar a la Lista
+                  </Button>
+                </div>
+              </div>
+
+
+              <h3 className="text-lg font-medium mt-8">Productos a Ingresar ({bulkEntryData.products.length})</h3>
+              <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
+                <table className="min-w-full divide-y divide-gray-300">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-40">Categoría</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[200px]">Producto</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">Cant.</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">Lote</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">Vencimiento</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">Condición</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Obs.</th>
-                      <th scope="col" className="relative px-6 py-3 w-10"><span className="sr-only">Eliminar</span></th>
+                      <th scope="col" className="px-3 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Producto</th>
+                      <th scope="col" className="px-3 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lote</th>
+                      <th scope="col" className="px-3 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cant.</th>
+                      <th scope="col" className="px-3 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Venc.</th>
+                      <th scope="col" className="px-3 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cond.</th>
+                      <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
+                        <span className="sr-only">Acciones</span>
+                      </th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {bulkEntryData.products.map((product, index) => (
-                      <tr key={index}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Select
-                            name="categoria_id"
-                            options={availableCategories}
-                            value={product.categoria_id || ''}
-                            onChange={(e) => handleProductLineChange(index, e)}
-                            required
-                            disabled={loading}
-                            className="w-full text-xs"
-                          />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Select
-                            name="maestro_producto_id"
-                            options={masterProducts
-                              .filter(mp => {
-                                if (!product.categoria_id) return true;
-                                const directMatch = mp.categoria_id === product.categoria_id;
-                                let joinedMatch = false;
-                                if (mp.categorias) {
-                                  if (Array.isArray(mp.categorias)) {
-                                    joinedMatch = mp.categorias[0]?.id === product.categoria_id;
-                                  } else {
-                                    // @ts-ignore
-                                    joinedMatch = mp.categorias.id === product.categoria_id;
-                                  }
-                                }
-                                return directMatch || joinedMatch;
-                              })
-                              .map(p => ({ value: p.id, label: p.nombre }))}
-                            value={product.maestro_producto_id}
-                            onChange={(e) => handleProductLineChange(index, e)}
-                            required
-                            disabled={loading}
-                          />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Input
-                            name="cantidad"
-                            type="number"
-                            min={1}
-                            value={product.cantidad}
-                            onChange={(e) => handleProductLineChange(index, e)}
-                            required
-                            disabled={loading}
-                          />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Input
-                            name="numero_lote"
-                            value={product.numero_lote}
-                            onChange={(e) => handleProductLineChange(index, e)}
-                            required
-                            disabled={loading}
-                          />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Input
-                            name="fecha_vencimiento"
-                            type="date"
-                            value={product.fecha_vencimiento}
-                            onChange={(e) => handleProductLineChange(index, e)}
-                            required
-                            disabled={loading}
-                          />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Select
-                            name="condicion"
-                            options={[{ value: 'bueno', label: 'Bueno' }, { value: 'cuarentena', label: 'Cuarentena' }]}
-                            value={product.condicion}
-                            onChange={(e) => handleProductLineChange(index, e)}
-                            required
-                            disabled={loading}
-                          />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <textarea
-                            name="observaciones"
-                            value={product.observaciones}
-                            onChange={(e) => handleProductLineChange(index, e)}
-                            placeholder="Observaciones..."
-                            className="w-full border rounded px-3 py-2"
-                            disabled={loading}
-                          />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            onClick={() => removeProductLine(index)}
-                            className="text-red-500 hover:text-red-700"
-                            disabled={loading}
-                          >
-                            <Trash2 className="w-5 h-5" />
-                          </Button>
+                  <tbody className="divide-y divide-gray-200 bg-white">
+                    {bulkEntryData.products.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-3 py-4 text-sm text-gray-500 text-center">
+                          No hay productos en la lista. Agrega uno usando el formulario de arriba.
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      bulkEntryData.products.map((product, index) => {
+                        const productName = masterProducts.find(m => m.id === product.maestro_producto_id)?.nombre || 'Desconocido';
+                        return (
+                          <tr key={index}>
+                            <td className="whitespace-nowrap px-3 py-4 text-sm font-medium text-gray-900">{productName}</td>
+                            <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{product.numero_lote}</td>
+                            <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{product.cantidad}</td>
+                            <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{product.fecha_vencimiento}</td>
+                            <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 capitalize">{product.condicion}</td>
+                            <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                              <button
+                                type="button"
+                                onClick={() => removeProductLine(index)}
+                                className="text-red-600 hover:text-red-900"
+                              >
+                                Eliminar
+                              </button>
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
-
-              <Button type="button" onClick={addProductLine} variant="secondary" className="w-full mt-4" disabled={loading}>
-                <Plus className="w-4 h-4 mr-2" /> Añadir Fila
-              </Button>
             </div>
           ) : null}
           <div className="flex justify-end">

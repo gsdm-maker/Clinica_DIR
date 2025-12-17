@@ -190,15 +190,15 @@ export function Movements() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Producto</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">N° Lote</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Proveedor</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cantidad</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Condición</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Usuario</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Motivo/Guía</th>
+                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
+                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[180px]">Producto</th>
+                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">N° Lote</th>
+                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[150px]">Proveedor</th>
+                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
+                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cant.</th>
+                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Condición</th>
+                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[150px]">Usuario</th>
+                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[180px]">Motivo/Guía</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -209,19 +209,19 @@ export function Movements() {
               ) : (
                 movements.map((mov, index) => (
                   <tr key={index}>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{format(new Date(mov.fecha), 'dd/MM/yy HH:mm', { locale: es })}</td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900 capitalize">{mov.producto_nombre}</td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{mov.numero_lote}</td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 capitalize">{mov.proveedor_nombre}</td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm">
+                    <td className="px-2 py-4 whitespace-nowrap text-sm text-gray-700 align-top">{format(new Date(mov.fecha), 'dd/MM/yy HH:mm', { locale: es })}</td>
+                    <td className="px-2 py-4 text-sm font-medium text-gray-900 capitalize align-top">{mov.producto_nombre}</td>
+                    <td className="px-2 py-4 whitespace-nowrap text-sm text-gray-700 align-top">{mov.numero_lote}</td>
+                    <td className="px-2 py-4 text-sm text-gray-700 capitalize align-top">{mov.proveedor_nombre}</td>
+                    <td className="px-2 py-4 whitespace-nowrap text-sm align-top">
                       <Badge variant={mov.tipo_movimiento === 'entrada' ? 'success' : 'info'}>{mov.tipo_movimiento === 'entrada' ? 'Entrada' : 'Salida'}</Badge>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm font-semibold">{mov.cantidad}</td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm capitalize">
+                    <td className="px-2 py-4 whitespace-nowrap text-sm font-semibold align-top">{mov.cantidad}</td>
+                    <td className="px-2 py-4 whitespace-nowrap text-sm capitalize align-top">
                       <Badge variant={getConditionVariant(mov.condicion)}>{mov.condicion?.toLowerCase()}</Badge>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{mov.usuario_nombre}</td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">{mov.motivo}</td>
+                    <td className="px-2 py-4 text-sm text-gray-700 align-top">{mov.usuario_nombre}</td>
+                    <td className="px-2 py-4 text-sm text-gray-500 capitalize align-top">{mov.motivo}</td>
                   </tr>
                 ))
               )}
