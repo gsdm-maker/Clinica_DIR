@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Layout } from './components/layout/Layout';
+import { ChangePasswordModal } from './components/auth/ChangePasswordModal';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Inventory } from './pages/Inventory';
@@ -13,9 +14,9 @@ import { Movements } from './pages/Movements';
 import PatientMedications from './pages/PatientMedications';
 import DeliveryHistory from './pages/DeliveryHistory';
 import ChecklistAlmacenamiento from './pages/ChecklistAlmacenamiento';
-import ChecklistProtocolo from './pages/ChecklistProtocolo'; // Import new page
-import ChecklistHistory from './pages/ChecklistHistory'; // Import new page
-import { Users } from './pages/Users'; // Import new page
+import ChecklistProtocolo from './pages/ChecklistProtocolo';
+import ChecklistHistory from './pages/ChecklistHistory';
+import { Users } from './pages/Users';
 
 function ProtectedRoute() {
   const { user } = useAuth();
@@ -42,13 +43,28 @@ function AppRoutes() {
     );
   }
 
+  // Force password change if flag is true
+  if (user?.must_change_password) {
+    return (
+      <React.Fragment>
+        <ChangePasswordModal isOpen={true} />
+        {/* Render background purely for visual context, but inaccessible */}
+        <div className="filter blur-sm pointer-events-none select-none h-screen overflow-hidden" aria-hidden="true">
+          <Routes>
+            <Route path="*" element={<Dashboard />} />
+          </Routes>
+        </div>
+      </React.Fragment>
+    );
+  }
+
   return (
     <Routes>
-      <Route 
-        path="/login" 
-        element={user ? <Navigate to="/" replace /> : <Login />} 
+      <Route
+        path="/login"
+        element={user ? <Navigate to="/" replace /> : <Login />}
       />
-      
+
       {/* Rutas Protegidas */}
       <Route element={<ProtectedRoute />}>
         <Route path="/" element={<Dashboard />} />
@@ -60,8 +76,8 @@ function AppRoutes() {
         <Route path="/patient-medications" element={<PatientMedications />} />
         <Route path="/delivery-history" element={<DeliveryHistory />} />
         <Route path="/checklist-storage" element={<ChecklistAlmacenamiento />} />
-        <Route path="/checklist-protocol" element={<ChecklistProtocolo />} /> {/* Add new route */}
-        <Route path="/checklist-history" element={<ChecklistHistory />} /> {/* Add new route */}
+        <Route path="/checklist-protocol" element={<ChecklistProtocolo />} />
+        <Route path="/checklist-history" element={<ChecklistHistory />} />
         <Route path="/users" element={<Users />} />
       </Route>
 
